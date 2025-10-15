@@ -519,7 +519,7 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={{}},
-    runtime_hooks=['{str((self.build_dir / 'pyi_rth_addsrc.py')).replace('\\\\','/') }'],
+    runtime_hooks=[r'build/pyi_rth_addsrc.py'],
     excludes=[
         'matplotlib',
         'numpy',
