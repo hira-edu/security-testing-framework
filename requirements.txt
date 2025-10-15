@@ -5,3 +5,4 @@ cryptography>=41.0.0
 requests>=2.31.0
 pywin32>=306; sys_platform == 'win32'
 pywinctl>=0.3; sys_platform == 'win32'
+PyYAML>=6.0

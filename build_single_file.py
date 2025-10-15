@@ -515,7 +515,7 @@ a = Analysis(
         'core.stealth_engine','core.advanced_config',
         'modules.comprehensive_test_runner','modules.input_monitor','modules.system_monitor',
         'modules.memory_scanner','modules.api_hooks','modules.screen_capture_bypass',
-        'utils.report_generator','utils.updater'
+        'utils.report_generator','utils.updater','yaml'
     ],
     hookspath=[],
     hooksconfig={{}},
