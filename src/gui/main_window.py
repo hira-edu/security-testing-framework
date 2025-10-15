@@ -148,7 +148,7 @@ class MainWindow:
                 if var.get():
                     self.results_text.insert(tk.END, f"\n[*] Running {test_name}...\n")
                     # Simulate test execution
-                    result = f"  ✓ {test_name} completed successfully\n"
+                    result = f"  [OK] {test_name} completed successfully\n"
                     self.results_text.insert(tk.END, result)
                     self.results_text.see(tk.END)
 
