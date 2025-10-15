@@ -471,21 +471,23 @@ class MainWindow:
         """Create PyInstaller spec file"""
         print("[PACKAGE] Creating PyInstaller spec file...")
 
+        # Use forward slashes for cross-platform compatibility
+        base_dir_str = str(self.base_dir).replace('\\', '/')
+
         spec_content = f'''
 # -*- mode: python ; coding: utf-8 -*-
 import sys
 from pathlib import Path
 
 block_cipher = None
-base_dir = Path('{self.base_dir}').as_posix()
 
 a = Analysis(
-    [base_dir + '/launcher.py'],
-    pathex=[base_dir],
+    ['{base_dir_str}/launcher.py'],
+    pathex=['{base_dir_str}'],
     binaries=[],
     datas=[
-        (base_dir + '/resources', 'resources'),
-        (base_dir + '/native', 'native'),
+        ('{base_dir_str}/resources', 'resources'),
+        ('{base_dir_str}/native', 'native'),
     ],
     hiddenimports=[
         'tkinter',
