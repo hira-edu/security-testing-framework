@@ -1,5 +1,7 @@
 # Security Testing Framework
 
+For changes and release notes, see: CHANGELOG.md
+
 A professional-grade, single-file security testing framework for evaluating exam proctoring software integrity. This tool is designed exclusively for legitimate security research and vulnerability assessment by authorized security professionals.
 
 ## 🎯 Purpose
