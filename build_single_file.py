@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Security Testing Framework - Single File Builder
 Creates a self-contained executable for security testing
@@ -485,7 +485,7 @@ class MainWindow:
         rth_path = self.build_dir / "pyi_rth_addsrc.py"
         rth_code = (
             "import sys, os\n"
-            "base = os.path.abspath(os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__))\n"
+            "base = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))\n"
             "candidates = [os.path.join(base, 'src'), os.path.join(base, 'resources')]\n"
             "\nfor p in candidates:\n    "
             "\n    if os.path.isdir(p) and p not in sys.path: sys.path.insert(0, p)\n"
@@ -834,10 +834,10 @@ class AutoUpdater:
         """Execute the complete build process"""
         try:
             print(f"""
-╔═══════════════════════════════════════════════════════════════╗
-║     Security Testing Framework - Single File Builder          ║
-║                    Version {self.version}                              ║
-╚═══════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘     Security Testing Framework - Single File Builder          â•‘
+â•‘                    Version {self.version}                              â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
             """)
         except UnicodeEncodeError:
             # Fallback for systems that don't support Unicode
@@ -865,9 +865,9 @@ class AutoUpdater:
 
             try:
                 print("""
-╔═══════════════════════════════════════════════════════════════╗
-║                    BUILD COMPLETE!                            ║
-╚═══════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘                    BUILD COMPLETE!                            â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 Next steps:
 1. Run: build_installer.bat
@@ -914,3 +914,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
