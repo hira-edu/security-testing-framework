@@ -810,12 +810,21 @@ class AutoUpdater:
 
     def run(self):
         """Execute the complete build process"""
-        print(f"""
+        try:
+            print(f"""
 ╔═══════════════════════════════════════════════════════════════╗
 ║     Security Testing Framework - Single File Builder          ║
 ║                    Version {self.version}                              ║
 ╚═══════════════════════════════════════════════════════════════╝
-        """)
+            """)
+        except UnicodeEncodeError:
+            # Fallback for systems that don't support Unicode
+            print(f"""
+================================================================
+     Security Testing Framework - Single File Builder
+                    Version {self.version}
+================================================================
+            """)
 
         try:
             self.clean_directories()
@@ -832,7 +841,8 @@ class AutoUpdater:
             if self.release_mode:
                 self.build_executable()
 
-            print("""
+            try:
+                print("""
 ╔═══════════════════════════════════════════════════════════════╗
 ║                    BUILD COMPLETE!                            ║
 ╚═══════════════════════════════════════════════════════════════╝
@@ -842,7 +852,19 @@ Next steps:
 2. Or: python build_single_file.py --release
 3. Output will be in: dist/SecurityTestingFramework.exe
 
-            """)
+                """)
+            except UnicodeEncodeError:
+                print("""
+================================================================
+                    BUILD COMPLETE!
+================================================================
+
+Next steps:
+1. Run: build_installer.bat
+2. Or: python build_single_file.py --release
+3. Output will be in: dist/SecurityTestingFramework.exe
+
+                """)
 
         except Exception as e:
             print(f"❌ Build failed: {e}")
