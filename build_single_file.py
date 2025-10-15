@@ -28,7 +28,7 @@ class SingleFileBuilder:
 
     def clean_directories(self):
         """Clean previous build artifacts"""
-        print("🧹 Cleaning previous builds...")
+        print("Cleaning previous builds...")
         for dir_path in [self.dist_dir, self.build_dir]:
             if dir_path.exists():
                 shutil.rmtree(dir_path)
@@ -37,7 +37,7 @@ class SingleFileBuilder:
 
     def create_project_structure(self):
         """Create the project directory structure"""
-        print("📁 Creating project structure...")
+        print("Creating project structure...")
 
         directories = [
             "src/core",
@@ -57,7 +57,7 @@ class SingleFileBuilder:
 
     def create_launcher(self):
         """Create the main launcher application"""
-        print("🚀 Creating launcher application...")
+        print("[LAUNCH] Creating launcher application...")
 
         launcher_code = '''
 #!/usr/bin/env python3
@@ -103,7 +103,7 @@ class SecurityTestingFramework:
     def request_admin(self):
         """Request administrator privileges"""
         if not self.is_admin:
-            print("⚠️  Requesting administrator privileges...")
+            print("[WARNING]  Requesting administrator privileges...")
             ctypes.windll.shell32.ShellExecuteW(
                 None, "runas", sys.executable, " ".join(sys.argv), None, 1
             )
@@ -240,7 +240,7 @@ if __name__ == "__main__":
 
     def create_gui_module(self):
         """Create the GUI module"""
-        print("🎨 Creating GUI module...")
+        print("[GUI] Creating GUI module...")
 
         gui_code = '''
 import tkinter as tk
@@ -469,7 +469,7 @@ class MainWindow:
 
     def create_pyinstaller_spec(self):
         """Create PyInstaller spec file"""
-        print("📦 Creating PyInstaller spec file...")
+        print("[PACKAGE] Creating PyInstaller spec file...")
 
         spec_content = f'''
 # -*- mode: python ; coding: utf-8 -*-
@@ -546,7 +546,7 @@ exe = EXE(
 
     def create_version_info(self):
         """Create version information file"""
-        print("📝 Creating version information...")
+        print("[DOC] Creating version information...")
 
         version_info = f'''
 # UTF-8
@@ -587,7 +587,7 @@ VSVersionInfo(
 
     def create_batch_installer(self):
         """Create batch file for easy building"""
-        print("🔨 Creating batch installer...")
+        print("[BUILD] Creating batch installer...")
 
         batch_content = '''@echo off
 echo.
@@ -646,7 +646,7 @@ pause
 
     def create_icon(self):
         """Create a simple icon for the application"""
-        print("🎨 Creating application icon...")
+        print("[GUI] Creating application icon...")
 
         try:
             from PIL import Image, ImageDraw, ImageFont
@@ -685,10 +685,10 @@ pause
 
     def build_executable(self):
         """Build the single executable using PyInstaller"""
-        print("🔨 Building executable with PyInstaller...")
+        print("[BUILD] Building executable with PyInstaller...")
 
         if not shutil.which("pyinstaller"):
-            print("⚠️  PyInstaller not found. Installing...")
+            print("[WARNING]  PyInstaller not found. Installing...")
             subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"])
 
         # Run PyInstaller
@@ -702,14 +702,14 @@ pause
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         if result.returncode == 0:
-            print("✅ Build successful!")
+            print("[SUCCESS] Build successful!")
             exe_path = self.dist_dir / "SecurityTestingFramework.exe"
             if exe_path.exists():
                 size_mb = exe_path.stat().st_size / (1024 * 1024)
-                print(f"📦 Output: {exe_path}")
-                print(f"📊 Size: {size_mb:.1f} MB")
+                print(f"[PACKAGE] Output: {exe_path}")
+                print(f"[STATS] Size: {size_mb:.1f} MB")
         else:
-            print("❌ Build failed!")
+            print("[ERROR] Build failed!")
             print(result.stderr)
 
     def create_additional_modules(self):
@@ -867,7 +867,7 @@ Next steps:
                 """)
 
         except Exception as e:
-            print(f"❌ Build failed: {e}")
+            print(f"[ERROR] Build failed: {e}")
             return 1
         finally:
             # Cleanup temp directory

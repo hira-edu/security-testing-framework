@@ -42,7 +42,7 @@ class SecurityTestingFramework:
     def request_admin(self):
         """Request administrator privileges"""
         if not self.is_admin:
-            print("⚠️  Requesting administrator privileges...")
+            print("[WARNING] Requesting administrator privileges...")
             ctypes.windll.shell32.ShellExecuteW(
                 None, "runas", sys.executable, " ".join(sys.argv), None, 1
             )
