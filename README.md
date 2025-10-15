@@ -34,6 +34,11 @@ If you prefer the PowerShell installer but you are in CMD, use:
 powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.ps1 | iex"
 ```
 
+Notes:
+- The installers auto-detect non-writable locations (e.g., `C:\Windows\System32\config\systemprofile`) and fall back to user-writable paths under `%LOCALAPPDATA%`, `%USERPROFILE%`, or `%TEMP%`.
+- Batch installer supports `--portable` and `--no-shortcuts`.
+- PowerShell installer supports `-Portable`, `-NoDesktopShortcut`, `-NoStartMenu`, and `-Silent`.
+
 ### Method 2: Download Pre-Built Release
 
 Download the latest `SecurityTestingFramework.exe` directly:
@@ -76,6 +81,18 @@ curl -L https://raw.githubusercontent.com/hira-edu/security-testing-framework/ma
 # Without shortcuts
 curl -L https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.bat -o install.bat && install.bat --no-shortcuts
 ```
+
+### New Commands and Shortcuts
+
+- Launch from Start Menu: Security Testing Framework
+- Launch from Desktop: Security Testing Framework.lnk (if created)
+- Launch from shell (after install): `SecurityTestingFramework` or run the installed `.exe`
+- Portable run: extract or install to a folder and run `SecurityTestingFramework.exe`
+
+### Troubleshooting
+
+- If running under restricted/service contexts, the installer will avoid system profile paths and install to a user-writable directory automatically.
+- If `irm` is not recognized in CMD, use the provided PowerShell-on-CMD one-liner above.
 
 ### Uninstallation
 
