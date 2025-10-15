@@ -12,16 +12,73 @@ This framework assists security teams in:
 
 ## ⚡ Quick Start
 
-### One-Click Installation
-```bash
-# Windows users - just double-click:
-build_installer.bat
+### Method 1: One-Line Installation (Recommended)
 
-# Or run from command line:
-python build_single_file.py
+#### PowerShell (Run as Administrator):
+```powershell
+irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.ps1 | iex
+```
+
+#### Alternative PowerShell command:
+```powershell
+iwr -useb https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.ps1 | iex
+```
+
+#### CMD/Command Prompt:
+```cmd
+curl -L https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.bat -o %TEMP%\stf-install.bat && %TEMP%\stf-install.bat
+```
+
+### Method 2: Download Pre-Built Release
+
+Download the latest `SecurityTestingFramework.exe` directly:
+```
+https://github.com/hira-edu/security-testing-framework/releases/latest
+```
+
+### Method 3: Build from Source
+```bash
+# Clone and build
+git clone https://github.com/hira-edu/security-testing-framework.git
+cd security-testing-framework
+build_installer.bat
 ```
 
 This creates a single executable: `SecurityTestingFramework.exe` (~120MB)
+
+### Advanced Installation Options
+
+#### PowerShell with Parameters:
+```powershell
+# Install to custom location
+irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.ps1 | iex -InstallPath "C:\Tools\STF"
+
+# Portable installation (current directory)
+irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.ps1 | iex -Portable
+
+# Silent installation (no prompts)
+irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.ps1 | iex -Silent
+
+# Without shortcuts
+irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.ps1 | iex -NoDesktopShortcut -NoStartMenu
+```
+
+#### CMD with Options:
+```cmd
+# Portable mode (install to current directory)
+curl -L https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.bat -o install.bat && install.bat --portable
+```
+
+### Uninstallation
+
+#### Windows:
+```powershell
+# If installed via PowerShell
+& "$env:LOCALAPPDATA\SecurityTestingFramework\uninstall.ps1"
+
+# If installed via CMD
+%LOCALAPPDATA%\SecurityTestingFramework\uninstall.bat
+```
 
 ## 🏗️ Architecture
 
