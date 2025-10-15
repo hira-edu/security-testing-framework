@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.spec
+venv/
+env/
+.env
+
+# PyInstaller
+*.manifest
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Security
+*.key
+*.pem
+*.crt
+config.json.backup
+
+# Build artifacts
+temp_build/
+output/
+release/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/

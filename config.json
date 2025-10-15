@@ -1,0 +1,20 @@
+{
+    "version": "1.0.0",
+    "build_time": "20251015_184159",
+    "security_level": "HIGH",
+    "enable_logging": true,
+    "stealth_mode": false,
+    "auto_update": true,
+    "modules": {
+        "screen_capture": true,
+        "process_monitor": true,
+        "api_hooks": true,
+        "memory_scanner": true,
+        "network_monitor": true
+    },
+    "targets": [
+        "LockDownBrowser.exe",
+        "SafeExamBrowser.exe",
+        "Respondus.exe"
+    ]
+}
