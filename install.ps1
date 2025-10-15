@@ -93,9 +93,45 @@ try {
         $InstallPath = Get-Location
         Write-Host "   Portable mode: Installing to current directory" -ForegroundColor Gray
     } else {
-        if (-not (Test-Path $InstallPath)) {
-            New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
+        # Normalize and harden InstallPath selection for non-admin/svc contexts
+        # 1) If LOCALAPPDATA points to systemprofile or is empty, prefer USERPROFILE
+        # 2) If path is not writable, fall back to user-writable locations
+
+        function Test-PathWritable([string]$p) {
+            try {
+                if (-not (Test-Path $p)) { New-Item -ItemType Directory -Path $p -Force | Out-Null }
+                $test = Join-Path $p '.__writetest'
+                Set-Content -Path $test -Value 'ok' -Force -ErrorAction Stop
+                Remove-Item $test -Force -ErrorAction SilentlyContinue
+                return $true
+            } catch { return $false }
         }
+
+        $resolved = $InstallPath
+        $isSystemProfile = $resolved -match "\\Windows\\System32\\config\\systemprofile\\"
+        if ($isSystemProfile -and $env:USERPROFILE) {
+            $resolved = Join-Path $env:USERPROFILE 'AppData\\Local\\SecurityTestingFramework'
+        }
+
+        if (-not (Test-PathWritable $resolved)) {
+            if ($env:USERPROFILE) {
+                $candidate = Join-Path $env:USERPROFILE 'SecurityTestingFramework'
+                if (Test-PathWritable $candidate) { $resolved = $candidate }
+            }
+        }
+        if (-not (Test-PathWritable $resolved)) {
+            if ($env:TEMP) {
+                $candidate = Join-Path $env:TEMP 'SecurityTestingFramework'
+                if (Test-PathWritable $candidate) { $resolved = $candidate }
+            }
+        }
+
+        if (-not (Test-PathWritable $resolved)) {
+            throw "Unable to find a writable installation directory (tried LOCALAPPDATA, USERPROFILE, TEMP)."
+        }
+
+        $InstallPath = $resolved
+        if (-not (Test-Path $InstallPath)) { New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null }
         Write-Host "   Install path: $InstallPath" -ForegroundColor Gray
     }
 

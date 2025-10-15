@@ -29,6 +29,11 @@ iwr -useb https://raw.githubusercontent.com/hira-edu/security-testing-framework/
 curl -L https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.bat -o %TEMP%\stf-install.bat && %TEMP%\stf-install.bat
 ```
 
+If you prefer the PowerShell installer but you are in CMD, use:
+```cmd
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.ps1 | iex"
+```
+
 ### Method 2: Download Pre-Built Release
 
 Download the latest `SecurityTestingFramework.exe` directly:
@@ -67,6 +72,9 @@ irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/i
 ```cmd
 # Portable mode (install to current directory)
 curl -L https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.bat -o install.bat && install.bat --portable
+
+# Without shortcuts
+curl -L https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/install.bat -o install.bat && install.bat --no-shortcuts
 ```
 
 ### Uninstallation

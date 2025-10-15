@@ -11,12 +11,35 @@ set "REPO_NAME=security-testing-framework"
 set "APP_NAME=SecurityTestingFramework"
 set "INSTALL_PATH=%LOCALAPPDATA%\SecurityTestingFramework"
 
+:: Normalize and harden INSTALL_PATH selection for non-admin/svc contexts
+:: - If LOCALAPPDATA resolves to systemprofile or is empty, fall back to user profile
+:: - If chosen path is not writable, fall back to a user-writable location
+
+:: Ensure LOCALAPPDATA has a sensible default
+if "%LOCALAPPDATA%"=="" (
+    if not "%USERPROFILE%"=="" (
+        set "LOCALAPPDATA=%USERPROFILE%\AppData\Local"
+    )
+)
+
+:: Re-evaluate default install path after potential LOCALAPPDATA fix
+set "INSTALL_PATH=%LOCALAPPDATA%\SecurityTestingFramework"
+
 :: Check parameters
-if "%1"=="--portable" (
+:: Parse arguments (support multiple flags)
+:parseargs
+if "%~1"=="" goto argsdone
+if /I "%~1"=="--portable" (
     set "INSTALL_PATH=%CD%"
     set "PORTABLE=1"
 )
-if "%1"=="--help" goto :help
+if /I "%~1"=="--no-shortcuts" (
+    set "NO_SHORTCUTS=1"
+)
+if /I "%~1"=="--help" goto :help
+shift
+goto :parseargs
+:argsdone
 
 :: Banner
 echo.
@@ -64,12 +87,41 @@ echo [2/6] Fetching latest release information...
 set "DOWNLOAD_URL=https://github.com/%REPO_OWNER%/%REPO_NAME%/releases/latest/download/%APP_NAME%.exe"
 echo   Download URL: %DOWNLOAD_URL%
 
-:: Step 3: Create installation directory
+:: Step 3: Create installation directory (with fallbacks if needed)
 echo [3/6] Preparing installation directory...
 
 if not defined PORTABLE (
-    if not exist "%INSTALL_PATH%" (
-        mkdir "%INSTALL_PATH%"
+    rem Avoid installing under systemprofile when not running as SYSTEM
+    echo %INSTALL_PATH% | find /I "\Windows\System32\config\systemprofile\" >nul
+    if %errorlevel%==0 (
+        if not "%USERPROFILE%"=="" (
+            set "INSTALL_PATH=%USERPROFILE%\AppData\Local\SecurityTestingFramework"
+        )
+    )
+
+    rem Try to create and test write access; if it fails, fall back to safer locations
+    if not exist "%INSTALL_PATH%" mkdir "%INSTALL_PATH%" 2>nul
+    break>"%INSTALL_PATH%\.__writetest" 2>nul
+    if errorlevel 1 (
+        if not "%USERPROFILE%"=="" (
+            set "INSTALL_PATH=%USERPROFILE%\SecurityTestingFramework"
+            if not exist "%INSTALL_PATH%" mkdir "%INSTALL_PATH%" 2>nul
+            break>"%INSTALL_PATH%\.__writetest" 2>nul
+        )
+    )
+    if errorlevel 1 (
+        if not "%TEMP%"=="" (
+            set "INSTALL_PATH=%TEMP%\SecurityTestingFramework"
+            if not exist "%INSTALL_PATH%" mkdir "%INSTALL_PATH%" 2>nul
+            break>"%INSTALL_PATH%\.__writetest" 2>nul
+        )
+    )
+    if not errorlevel 1 (
+        del /q "%INSTALL_PATH%\.__writetest" >nul 2>&1
+    ) else (
+        echo ERROR: Unable to find a writable installation directory.
+        echo        Tried: %%LOCALAPPDATA%%, %%USERPROFILE%%, and %%TEMP%%.
+        goto :error
     )
 )
 echo   Install path: %INSTALL_PATH%
@@ -80,7 +132,7 @@ echo [4/6] Downloading Security Testing Framework...
 set "EXE_PATH=%INSTALL_PATH%\%APP_NAME%.exe"
 
 if "%DOWNLOADER%"=="curl" (
-    curl -L -o "%EXE_PATH%" "%DOWNLOAD_URL%"
+    curl -fL --create-dirs -o "%EXE_PATH%" "%DOWNLOAD_URL%"
     if !errorlevel! neq 0 (
         echo ERROR: Download failed!
         goto :error
@@ -108,7 +160,7 @@ if exist "%EXE_PATH%" (
 )
 
 :: Step 6: Create shortcuts (unless portable)
-if not defined PORTABLE (
+if not defined PORTABLE if not defined NO_SHORTCUTS (
     echo [6/6] Creating shortcuts...
 
     :: Create desktop shortcut using PowerShell
@@ -191,6 +243,7 @@ echo Usage: install.bat [options]
 echo.
 echo Options:
 echo   --portable    Install to current directory (portable mode)
+echo   --no-shortcuts  Skip creating Desktop and Start Menu shortcuts
 echo   --help        Show this help message
 echo.
 echo Examples:

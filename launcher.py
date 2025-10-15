@@ -48,7 +48,14 @@ class SecurityTestingFramework:
 
     def __init__(self):
         self.base_dir = Path(__file__).parent
-        self.config_file = self.base_dir / "config.json"
+        self.data_dir = self._determine_data_dir()
+        try:
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # Last resort to base_dir if data_dir cannot be created
+            self.data_dir = self.base_dir
+
+        self.config_file = self.data_dir / "config.json"
         self.is_admin = self.check_admin()
         self.config = self.load_config()
         self.advanced_config = None
@@ -73,8 +80,8 @@ class SecurityTestingFramework:
     def _init_advanced_features(self):
         """Initialize advanced testing features"""
         try:
-            # Load or create advanced configuration
-            adv_config_file = self.base_dir / "advanced_config.json"
+            # Load or create advanced configuration (store under data_dir)
+            adv_config_file = self.data_dir / "advanced_config.json"
             if adv_config_file.exists():
                 self.advanced_config = AdvancedConfiguration.from_file(str(adv_config_file))
             else:
@@ -230,7 +237,7 @@ class SecurityTestingFramework:
     def export_monitoring_data(self, output_dir: str = None):
         """Export all captured monitoring data"""
         if not output_dir:
-            output_dir = self.base_dir / "monitoring_data" / datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_dir = self.data_dir / "monitoring_data" / datetime.now().strftime("%Y%m%d_%H%M%S")
 
         os.makedirs(output_dir, exist_ok=True)
 
@@ -288,15 +295,60 @@ class SecurityTestingFramework:
             }
         }
 
+        # Prefer user data config file; fallback to a config shipped beside the executable
         if self.config_file.exists():
             with open(self.config_file, 'r') as f:
                 return json.load(f)
+        alt_config = self.base_dir / "config.json"
+        if alt_config.exists():
+            try:
+                with open(alt_config, 'r') as f:
+                    return json.load(f)
+            except Exception:
+                pass
         return default_config
 
     def save_config(self, config):
         """Save configuration to file"""
+        # Ensure parent exists and write to user data directory
+        self.config_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_file, 'w') as f:
             json.dump(config, f, indent=4)
+
+    def _determine_data_dir(self) -> Path:
+        """Choose a writable per-user data directory for runtime files.
+        Priority: LOCALAPPDATA\SecurityTestingFramework -> USERPROFILE\AppData\Local\SecurityTestingFramework -> USERPROFILE\SecurityTestingFramework -> TEMP\SecurityTestingFramework -> base_dir
+        """
+        candidates = []
+        localapp = os.environ.get('LOCALAPPDATA')
+        userprof = os.environ.get('USERPROFILE')
+        temp = os.environ.get('TEMP') or os.environ.get('TMP')
+
+        if localapp:
+            candidates.append(Path(localapp) / 'SecurityTestingFramework')
+        if userprof:
+            candidates.append(Path(userprof) / 'AppData' / 'Local' / 'SecurityTestingFramework')
+            candidates.append(Path(userprof) / 'SecurityTestingFramework')
+        if temp:
+            candidates.append(Path(temp) / 'SecurityTestingFramework')
+        candidates.append(self.base_dir)
+
+        for p in candidates:
+            try:
+                p.mkdir(parents=True, exist_ok=True)
+                test_file = p / '.__writetest'
+                with open(test_file, 'w') as tf:
+                    tf.write('ok')
+                try:
+                    test_file.unlink(missing_ok=True)
+                except TypeError:
+                    # Python <3.8 compatibility
+                    if test_file.exists():
+                        test_file.unlink()
+                return p
+            except Exception:
+                continue
+        return self.base_dir
 
     def run_gui(self):
         """Launch the advanced GUI interface"""

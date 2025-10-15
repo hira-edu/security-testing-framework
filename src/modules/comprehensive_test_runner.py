@@ -11,6 +11,7 @@ import logging
 import threading
 from typing import Dict, List, Any, Optional
 from datetime import datetime
+from pathlib import Path
 from dataclasses import dataclass, asdict
 import traceback
 
@@ -538,12 +539,46 @@ class ComprehensiveTestRunner:
             self.logger.error(f"Cleanup error: {e}")
 
     def _save_results(self, results: Dict[str, Any]):
-        """Save test results to file"""
+        """Save test results to a user-writable directory"""
         try:
+            # Determine a writable results directory
+            localapp = os.environ.get('LOCALAPPDATA')
+            userprof = os.environ.get('USERPROFILE')
+            temp = os.environ.get('TEMP') or os.environ.get('TMP')
+
+            candidates = []
+            if localapp:
+                candidates.append(Path(localapp) / 'SecurityTestingFramework' / 'results')
+            if userprof:
+                candidates.append(Path(userprof) / 'AppData' / 'Local' / 'SecurityTestingFramework' / 'results')
+                candidates.append(Path(userprof) / 'SecurityTestingFramework' / 'results')
+            if temp:
+                candidates.append(Path(temp) / 'SecurityTestingFramework' / 'results')
+            # Fallback to current directory
+            candidates.append(Path.cwd())
+
+            results_dir = None
+            for p in candidates:
+                try:
+                    p.mkdir(parents=True, exist_ok=True)
+                    test_file = p / '.__writetest'
+                    with open(test_file, 'w') as tf:
+                        tf.write('ok')
+                    try:
+                        test_file.unlink(missing_ok=True)
+                    except TypeError:
+                        if test_file.exists():
+                            test_file.unlink()
+                    results_dir = p
+                    break
+                except Exception:
+                    continue
+
             filename = f"test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-            with open(filename, 'w') as f:
+            out_path = (results_dir or Path.cwd()) / filename
+            with open(out_path, 'w') as f:
                 json.dump(results, f, indent=4, default=str)
-            self.logger.info(f"Results saved to {filename}")
+            self.logger.info(f"Results saved to {out_path}")
         except Exception as e:
             self.logger.error(f"Failed to save results: {e}")
 
