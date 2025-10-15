@@ -570,7 +570,7 @@ VSVersionInfo(
                     StringStruct(u'FileDescription', u'Security Testing Framework'),
                     StringStruct(u'FileVersion', u'{self.version}'),
                     StringStruct(u'InternalName', u'SecurityTestingFramework'),
-                    StringStruct(u'LegalCopyright', u'© 2024 Security Research Team'),
+                    StringStruct(u'LegalCopyright', u'(c) 2024 Security Research Team'),
                     StringStruct(u'OriginalFilename', u'SecurityTestingFramework.exe'),
                     StringStruct(u'ProductName', u'Security Testing Framework'),
                     StringStruct(u'ProductVersion', u'{self.version}')
@@ -714,7 +714,7 @@ pause
 
     def create_additional_modules(self):
         """Create additional module files"""
-        print("📚 Creating additional modules...")
+        print("Creating additional modules...")
 
         # Create CLI handler
         cli_code = '''
@@ -781,7 +781,7 @@ class AutoUpdater:
 
     def create_config_file(self):
         """Create default configuration file"""
-        print("⚙️ Creating configuration file...")
+        print("Creating configuration file...")
 
         config = {
             "version": self.version,
