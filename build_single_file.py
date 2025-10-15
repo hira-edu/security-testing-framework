@@ -56,8 +56,15 @@ class SingleFileBuilder:
             (self.base_dir / dir_name).mkdir(parents=True, exist_ok=True)
 
     def create_launcher(self):
-        """Create the main launcher application"""
-        print("[LAUNCH] Creating launcher application...")
+        """Use existing launcher if present; otherwise create a basic one.
+        This avoids overwriting the advanced launcher (with stealth/monitoring).
+        """
+        advanced_launcher = self.base_dir / "launcher.py"
+        if advanced_launcher.exists():
+            print("[LAUNCH] Using existing launcher.py (advanced)")
+            return advanced_launcher
+
+        print("[LAUNCH] Creating minimal launcher (advanced launcher not found)...")
 
         launcher_code = '''
 #!/usr/bin/env python3
@@ -474,6 +481,17 @@ class MainWindow:
         # Use forward slashes for cross-platform compatibility
         base_dir_str = str(self.base_dir).replace('\\', '/')
 
+        # Write a runtime hook to ensure bundled src/ is importable
+        rth_path = self.build_dir / "pyi_rth_addsrc.py"
+        rth_code = (
+            "import sys, os\n"
+            "base = os.path.abspath(os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(__file__))\n"
+            "candidates = [os.path.join(base, 'src'), os.path.join(base, 'resources')]\n"
+            "\nfor p in candidates:\n    "
+            "\n    if os.path.isdir(p) and p not in sys.path: sys.path.insert(0, p)\n"
+        )
+        rth_path.write_text(rth_code)
+
         spec_content = f'''
 # -*- mode: python ; coding: utf-8 -*-
 import sys
@@ -486,20 +504,22 @@ a = Analysis(
     pathex=['{base_dir_str}'],
     binaries=[],
     datas=[
+        ('{base_dir_str}/src', 'src'),
         ('{base_dir_str}/resources', 'resources'),
         ('{base_dir_str}/native', 'native'),
     ],
     hiddenimports=[
-        'tkinter',
-        'ctypes',
-        'json',
-        'threading',
-        'subprocess',
-        'pathlib',
+        # Core
+        'tkinter','ctypes','json','threading','subprocess','pathlib',
+        # Advanced modules to ensure inclusion
+        'core.stealth_engine','core.advanced_config',
+        'modules.comprehensive_test_runner','modules.input_monitor','modules.system_monitor',
+        'modules.memory_scanner','modules.api_hooks','modules.screen_capture_bypass',
+        'utils.report_generator','utils.updater'
     ],
     hookspath=[],
     hooksconfig={{}},
-    runtime_hooks=[],
+    runtime_hooks=['{str((self.build_dir / 'pyi_rth_addsrc.py')).replace('\\\\','/') }'],
     excludes=[
         'matplotlib',
         'numpy',
