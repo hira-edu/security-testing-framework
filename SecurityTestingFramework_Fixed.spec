@@ -1,13 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
+import os
 from pathlib import Path
 
 block_cipher = None
 
-base_dir = r'C:/Users/Workstation 1/security-testing-framework'
+# Use relative path that works in both local and GitHub Actions
+base_dir = os.path.abspath(SPECPATH)
 
 a = Analysis(
-    [f'{base_dir}/launcher.py'],
+    ['launcher.py'],
     pathex=[base_dir],
     binaries=[],
     datas=[
