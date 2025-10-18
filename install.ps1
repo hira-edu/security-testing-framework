@@ -101,20 +101,38 @@ try {
     # Step 5: Shortcuts
     if (-not $Portable) {
         Write-Host "[5/6] Creating shortcuts..." -ForegroundColor Green
-        $W = New-Object -ComObject WScript.Shell
-        if (-not $NoDesktopShortcut) {
-            $Desktop = [Environment]::GetFolderPath("Desktop")
-            $S = $W.CreateShortcut((Join-Path $Desktop "Security Testing Framework.lnk"))
-            $S.TargetPath = $ExePath; $S.WorkingDirectory = $InstallPath; $S.Description = "Security Testing Framework"; $S.Save()
-            Write-Host "   Desktop shortcut created" -ForegroundColor Green
-        }
-        if (-not $NoStartMenu) {
-            $StartMenu = [Environment]::GetFolderPath("StartMenu")
-            $Prog = Join-Path $StartMenu "Programs\Security Testing Framework"
-            if (-not (Test-Path $Prog)) { New-Item -ItemType Directory -Path $Prog -Force | Out-Null }
-            $S = $W.CreateShortcut((Join-Path $Prog "Security Testing Framework.lnk"))
-            $S.TargetPath = $ExePath; $S.WorkingDirectory = $InstallPath; $S.Description = "Security Testing Framework"; $S.Save()
-            Write-Host "   Start menu entry created" -ForegroundColor Green
+
+        # Check if running as SYSTEM (no user profile)
+        $isSystem = $env:USERNAME -eq "SYSTEM" -or [string]::IsNullOrEmpty($env:USERPROFILE) -or $env:USERPROFILE -like "*systemprofile*"
+
+        if ($isSystem) {
+            Write-Host "   Running as SYSTEM - skipping user shortcuts" -ForegroundColor Yellow
+        } else {
+            try {
+                $W = New-Object -ComObject WScript.Shell
+
+                if (-not $NoDesktopShortcut) {
+                    $Desktop = [Environment]::GetFolderPath("Desktop")
+                    if (![string]::IsNullOrEmpty($Desktop) -and (Test-Path (Split-Path $Desktop -Parent))) {
+                        $S = $W.CreateShortcut((Join-Path $Desktop "Security Testing Framework.lnk"))
+                        $S.TargetPath = $ExePath; $S.WorkingDirectory = $InstallPath; $S.Description = "Security Testing Framework"; $S.Save()
+                        Write-Host "   Desktop shortcut created" -ForegroundColor Green
+                    }
+                }
+
+                if (-not $NoStartMenu) {
+                    $StartMenu = [Environment]::GetFolderPath("StartMenu")
+                    if (![string]::IsNullOrEmpty($StartMenu) -and (Test-Path (Split-Path $StartMenu -Parent))) {
+                        $Prog = Join-Path $StartMenu "Programs\Security Testing Framework"
+                        if (-not (Test-Path $Prog)) { New-Item -ItemType Directory -Path $Prog -Force | Out-Null }
+                        $S = $W.CreateShortcut((Join-Path $Prog "Security Testing Framework.lnk"))
+                        $S.TargetPath = $ExePath; $S.WorkingDirectory = $InstallPath; $S.Description = "Security Testing Framework"; $S.Save()
+                        Write-Host "   Start menu entry created" -ForegroundColor Green
+                    }
+                }
+            } catch {
+                Write-Host "   Shortcuts skipped (profile unavailable)" -ForegroundColor Yellow
+            }
         }
         if ($isAdmin) {
             $MachinePath = [Environment]::GetEnvironmentVariable("Path","Machine")
