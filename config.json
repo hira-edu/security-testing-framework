@@ -1,9 +1,9 @@
 {
     "version": "1.0.0",
-    "build_time": "20251015_184159",
+    "build_time": "20251015_230834",
     "security_level": "HIGH",
     "enable_logging": true,
-    "stealth_mode": false,
+    "stealth_mode": true,
     "auto_update": true,
     "modules": {
         "screen_capture": true,
