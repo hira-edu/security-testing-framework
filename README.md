@@ -1,10 +1,10 @@
-# Security Testing Framework
+﻿# Security Testing Framework
 
 For changes and release notes, see: CHANGELOG.md
 
 A professional-grade, single-file security testing framework for evaluating exam proctoring software integrity. This tool is designed exclusively for legitimate security research and vulnerability assessment by authorized security professionals.
 
-## 🎯 Purpose
+## ðŸŽ¯ Purpose
 
 This framework assists security teams in:
 - Identifying potential vulnerabilities in exam proctoring software
@@ -12,7 +12,7 @@ This framework assists security teams in:
 - Improving security posture of educational integrity tools
 - Conducting authorized penetration testing
 
-## ⚡ Quick Start
+## âš¡ Quick Start
 
 ### Method 1: One-Line Installation (Recommended)
 
@@ -107,7 +107,7 @@ curl -L https://raw.githubusercontent.com/hira-edu/security-testing-framework/ma
 %LOCALAPPDATA%\SecurityTestingFramework\uninstall.bat
 ```
 
-## 🏗️ Architecture
+## ðŸ—ï¸ Architecture
 
 The framework uses a modular architecture with:
 - **Core Engine**: Python-based testing orchestration
@@ -116,7 +116,7 @@ The framework uses a modular architecture with:
 - **CLI Tools**: Scriptable command-line interface
 - **Report Generator**: Comprehensive security assessment reports
 
-## 📦 Components
+## ðŸ“¦ Components
 
 - **Screen Capture Testing**: Multiple capture method validation
 - **Process Monitoring**: Process manipulation detection
@@ -124,7 +124,7 @@ The framework uses a modular architecture with:
 - **Memory Analysis**: Runtime memory inspection tools
 - **Network Monitoring**: Network communication analysis
 
-## 🔧 Building from Source
+## ðŸ”§ Building from Source
 
 ### Prerequisites
 - Windows 10/11 (64-bit)
@@ -144,7 +144,7 @@ python build_single_file.py --release
 # Output: dist/SecurityTestingFramework.exe
 ```
 
-## 🚀 Usage
+## ðŸš€ Usage
 
 ### GUI Mode (Default)
 ```bash
@@ -163,7 +163,59 @@ SecurityTestingFramework.exe --report --output security_audit.pdf
 SecurityTestingFramework.exe --silent --config test_config.json
 ```
 
-## 📊 Testing Capabilities
+**Structured CLI examples**
+- `SecurityTestingFramework.exe monitor --target "LockDownBrowser.exe" --comprehensive --output results.json`
+- `SecurityTestingFramework.exe hooks --action status`
+- `SecurityTestingFramework.exe inject --method section-map --target "LockDownBrowser.exe" --dll C:\SecurityTestFramework\AdvancedHookDLL.dll`
+- `SecurityTestingFramework.exe hooks --action enable --profile lockdown-bypass --target "SafeExamBrowser.exe" --pid 4242 --service ExamMonitor`
+- `SecurityTestingFramework.exe capture --method auto --image captures\latest.png --metadata captures\latest.json`
+- `SecurityTestingFramework.exe hooks --action disable --layer all`
+- `SecurityTestingFramework.exe profiles --action add --name stealth-monitor --base-command monitor --set target=LockDownBrowser.exe --set stealth=true --set comprehensive=true`
+- `SecurityTestingFramework.exe inventory --name browser --sort-by cpu_percent --limit 10 --output snapshots\\browser.json`
+- `SecurityTestingFramework.exe inventory --baseline snapshots\baseline.json --sort-by pid --no-windows`
+- `SecurityTestingFramework.exe report --from-inventory snapshots\baseline.json --output reports\ld.json`
+- `SecurityTestingFramework.exe shell --no-banner`
+
+Use `--process`, `--pid`, `--file`, or `--service` with the `hooks` command to associate telemetry with specific executables, running processes, or services. These flags feed directly into the hook manager status so you can confirm exactly which context is active.
+
+See `docs/CLI_Roadmap.md` for the active roadmap and planned CLI enhancements.
+
+### Interactive Shell
+
+Launch an interactive REPL with:
+```bash
+SecurityTestingFramework.exe shell
+```
+
+Within the shell you can run any CLI verb (`monitor`, `hooks`, `profiles`, etc.) without re-launching the executable. Use `help` to see available commands or `help <command>` for detailed usage. Type `exit` or `quit` to leave the session.
+- Use `pick [inventory filters]` to launch an interactive selector backed by the inventory command; the chosen process is reused automatically by `inject`/`report` unless you run `clear selection`.
+
+### Default Profiles
+
+The framework seeds a few reusable CLI presets under `%LOCALAPPDATA%\SecurityTestingFramework\profiles` on first launch. List them with:
+```bash
+SecurityTestingFramework.exe profiles --action list
+```
+
+Included examples:
+- `stealth-monitor`: runs stealth monitoring with the lockdown bypass profile.
+- `baseline-capture`: captures a baseline screenshot plus metadata outputs.
+- `hooks-lockdown`: enables the lockdown hook stack for the default target.
+- `report-stealth`: generates a comprehensive report for LockDown Browser.
+
+Customise or extend these with `profiles --action add` and the new settings will persist alongside the defaults.
+### Process Inventory
+
+Collect a filtered snapshot of running processes with:
+```bash
+SecurityTestingFramework.exe inventory --name browser --sort-by cpu_percent --limit 10
+```
+
+Supported filters include executable name, PID, Windows session, integrity level, username, and window title substring. Use `--sort-by` (`name`, `pid`, `session_id`, `integrity`, `username`, `cpu_percent`) with `--sort-desc` to control ordering, and `--no-windows` to speed up collections by skipping window enumeration. Provide `--output <path>` to persist results for later analysis or reporting. Use `--baseline <path>` to diff against a saved snapshot; the output includes `added`, `removed`, and `changed` sets. Snapshots also capture handle/thread counts, DirectX module hints, and SetWindowDisplayAffinity states when available.
+Use `--from-inventory` with `inject` or `report` to reuse snapshot context without retyping targets.
+
+
+## ðŸ“Š Testing Capabilities
 
 ### 1. Screen Capture Methods
 - Windows Graphics Capture API
@@ -183,7 +235,7 @@ SecurityTestingFramework.exe --silent --config test_config.json
 - Virtual machine detection
 - Code integrity verification
 
-## 🔒 Security & Legal
+## ðŸ”’ Security & Legal
 
 ### Important Notice
 This tool is designed for **authorized security testing only**. Users must:
@@ -198,31 +250,52 @@ This tool is designed for **authorized security testing only**. Users must:
 - Do not use for malicious purposes
 - Maintain confidentiality of findings
 
-## 📈 Performance Metrics
+## ðŸ“ˆ Performance Metrics
 
 - **Installation Time**: < 30 seconds
 - **Startup Time**: < 5 seconds
 - **Memory Usage**: < 500MB
 - **Test Coverage**: > 95%
 
-## 🤝 Contributing
+## ðŸ¤ Contributing
 
 This is a private security research tool. Contributions are limited to authorized team members.
 
-## 📄 License
+## ðŸ“„ License
 
 Proprietary - For authorized security testing only.
 
-## ⚠️ Disclaimer
+## âš ï¸ Disclaimer
 
 This framework is provided for legitimate security testing purposes only. The authors assume no liability for misuse or damage caused by this software. Users are responsible for ensuring compliance with all applicable laws and obtaining proper authorization before use.
 
-## 🆘 Support
+## ðŸ†˜ Support
 
 For authorized users:
 - Internal documentation: `docs/`
 - Security reports: Submit through internal channels
 - Technical support: Contact security team
+
+## Tracking & TODO Checklist
+
+- [ ] Phase 0: Baseline CLI inventory.
+- [x] Phase 1.1: Parameter schema + profile storage (CLI profiles command with typed presets).
+- [x] Phase 2: Process inventory engine & filtering (process inventory CLI with filters, 2025-10-19).
+- [ ] Phase 3.1: Enhanced injection command.
+- [ ] Phase 3.2: Layer enable/disable/status commands.
+- [ ] Phase 3.3: DirectX hook management CLI.
+- [ ] Phase 3.4: SetWindowDisplayAffinity monitoring & bypass.
+- [ ] Phase 4.1: Structured logging implementation.
+- [ ] Phase 4.2: Telemetry aggregation commands.
+- [ ] Phase 4.3: Debug switches and diagnostics bundle.
+- [ ] Phase 4.4: Error handling standardization.
+- [ ] Phase 5.1: Pester coverage.
+- [ ] Phase 5.2: Integration harness.
+- [ ] Phase 5.3: CLI validation script integration.
+- [ ] Phase 6.1: README updates.
+- [ ] Phase 6.2: Help system.
+- [ ] Phase 6.3: Troubleshooting docs.
+- [ ] Phase 6.4: Demo artifacts.
 
 ---
 

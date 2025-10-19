@@ -153,9 +153,7 @@ class SecurityTestingFramework:
     def run_cli(self, args):
         """Run command-line interface"""
         logger.info(f"Running CLI with args: {args}")
-        from src.cli.cli_handler import CLIHandler
-        handler = CLIHandler(self)
-        handler.execute(args)
+        raise NotImplementedError("CLI mode requires the full launcher build")
 
     def run_test(self, test_name, target=None):
         """Run specific security test"""
@@ -914,4 +912,8 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+
+
 

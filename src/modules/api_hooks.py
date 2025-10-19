@@ -281,7 +281,9 @@ class CommonAPIHooks:
             # Call original
             return self.hooker.originals.get('CreateProcess', lambda: None)(*args)
 
-        self.hooker.hook_api('kernel32.dll', 'CreateProcessW', create_process_hook)
+        if not self.hooker.hook_api('kernel32.dll', 'CreateProcessW', create_process_hook):
+            raise RuntimeError("Failed to hook CreateProcessW")
+        return True
 
     def hook_screen_capture_protection(self):
         """Hook APIs used for screen capture protection"""
@@ -296,11 +298,13 @@ class CommonAPIHooks:
             # Return success without setting affinity
             return 1  # TRUE
 
-        self.hooker.hook_api(
+        if not self.hooker.hook_api(
             'user32.dll',
             'SetWindowDisplayAffinity',
             set_window_display_affinity_hook
-        )
+        ):
+            raise RuntimeError("Failed to hook SetWindowDisplayAffinity")
+        return True
 
     def hook_keyboard_input(self):
         """Hook keyboard input APIs"""
@@ -314,7 +318,9 @@ class CommonAPIHooks:
             # Call original
             return self.hooker.originals.get('GetKeyboardState', lambda: None)(key_state)
 
-        self.hooker.hook_api('user32.dll', 'GetKeyboardState', get_keyboard_state_hook)
+        if not self.hooker.hook_api('user32.dll', 'GetKeyboardState', get_keyboard_state_hook):
+            raise RuntimeError("Failed to hook GetKeyboardState")
+        return True
 
     def hook_clipboard(self):
         """Hook clipboard APIs"""
@@ -328,7 +334,9 @@ class CommonAPIHooks:
             # Call original
             return self.hooker.originals.get('GetClipboardData', lambda: None)(format)
 
-        self.hooker.hook_api('user32.dll', 'GetClipboardData', get_clipboard_data_hook)
+        if not self.hooker.hook_api('user32.dll', 'GetClipboardData', get_clipboard_data_hook):
+            raise RuntimeError("Failed to hook GetClipboardData")
+        return True
 
     def hook_window_enumeration(self):
         """Hook window enumeration APIs"""
@@ -342,7 +350,9 @@ class CommonAPIHooks:
             # Call original
             return self.hooker.originals.get('EnumWindows', lambda: None)(callback, lparam)
 
-        self.hooker.hook_api('user32.dll', 'EnumWindows', enum_windows_hook)
+        if not self.hooker.hook_api('user32.dll', 'EnumWindows', enum_windows_hook):
+            raise RuntimeError("Failed to hook EnumWindows")
+        return True
 
     def hook_memory_access(self):
         """Hook memory access APIs"""
@@ -360,7 +370,9 @@ class CommonAPIHooks:
                 h_process, base_address, buffer, size, bytes_read
             )
 
-        self.hooker.hook_api('kernel32.dll', 'ReadProcessMemory', read_process_memory_hook)
+        if not self.hooker.hook_api('kernel32.dll', 'ReadProcessMemory', read_process_memory_hook):
+            raise RuntimeError("Failed to hook ReadProcessMemory")
+        return True
 
 
 # PE structure definitions for IAT hooking
@@ -380,39 +392,159 @@ class IMAGE_NT_HEADERS(ctypes.Structure):
 
 
 class HookManager:
-    """Manage all hooks in the system"""
+    """Manage all hooks in the system."""
 
     def __init__(self):
+        self.logger = logging.getLogger(__name__ + ".manager")
         self.hooker = WindowsAPIHooker()
         self.common_hooks = CommonAPIHooks(self.hooker)
-        self.active_hooks = []
+        self.active_hooks: List[str] = []
+        self.active_context: Dict[str, Dict[str, Any]] = {}
+        self._catalog: Dict[str, Dict[str, Any]] = {
+            "screen_capture": {
+                "description": "Bypass SetWindowDisplayAffinity to capture protected windows",
+                "handler": self.common_hooks.hook_screen_capture_protection,
+            },
+            "keyboard": {
+                "description": "Monitor keyboard input APIs for telemetry",
+                "handler": self.common_hooks.hook_keyboard_input,
+            },
+            "clipboard": {
+                "description": "Monitor clipboard access APIs",
+                "handler": self.common_hooks.hook_clipboard,
+            },
+            "window_enum": {
+                "description": "Trace EnumWindows enumeration activity",
+                "handler": self.common_hooks.hook_window_enumeration,
+            },
+            "process_creation": {
+                "description": "Intercept CreateProcessW to observe spawning behaviour",
+                "handler": self.common_hooks.hook_process_creation,
+            },
+        }
+        self._profiles: Dict[str, List[str]] = {
+            "lockdown-bypass": [
+                "screen_capture",
+                "keyboard",
+                "clipboard",
+                "window_enum",
+                "process_creation",
+            ],
+        }
 
-    def enable_lockdown_bypass_hooks(self):
-        """Enable hooks for LockDown Browser bypass"""
-        hooks_to_enable = [
-            self.common_hooks.hook_screen_capture_protection,
-            self.common_hooks.hook_keyboard_input,
-            self.common_hooks.hook_clipboard,
-            self.common_hooks.hook_window_enumeration,
-            self.common_hooks.hook_process_creation
+    def list_available_hooks(self) -> Dict[str, str]:
+        return {name: data["description"] for name, data in self._catalog.items()}
+
+    def enable_hooks(
+        self,
+        hooks: Optional[List[str]] = None,
+        target_info: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        requested = hooks or list(self._catalog.keys())
+        operations: List[Dict[str, Any]] = []
+        context_payload = dict(target_info or {})
+
+        for hook_name in requested:
+            catalog_entry = self._catalog.get(hook_name)
+            if not catalog_entry:
+                operations.append({"hook": hook_name, "status": "unknown"})
+                continue
+
+            if hook_name in self.active_hooks:
+                if context_payload:
+                    self.active_context[hook_name] = dict(context_payload)
+                operations.append({"hook": hook_name, "status": "already_enabled"})
+                continue
+
+            handler = catalog_entry["handler"]
+            try:
+                result = handler()
+                if result is False:
+                    raise RuntimeError("hook handler returned False")
+                self.active_hooks.append(hook_name)
+                self.active_context[hook_name] = dict(context_payload)
+                operation = {
+                    "hook": hook_name,
+                    "status": "enabled",
+                    "description": catalog_entry["description"],
+                }
+                if context_payload:
+                    operation["context"] = dict(context_payload)
+                operations.append(operation)
+            except Exception as exc:  # pragma: no cover - defensive
+                self.logger.exception("Failed to enable hook %s", hook_name)
+                operations.append({"hook": hook_name, "status": "error", "error": str(exc)})
+
+        return operations
+
+    def enable_profile(
+        self,
+        profile: str,
+        target_info: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        hooks = self._profiles.get(profile)
+        if not hooks:
+            raise ValueError(f"Unknown hook profile: {profile}")
+        return self.enable_hooks(hooks, target_info=target_info)
+
+    def enable_lockdown_bypass_hooks(self, target_info: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Enable hooks for LockDown Browser bypass."""
+        return self.enable_profile("lockdown-bypass", target_info=target_info)
+
+    def disable_hooks(self, hooks: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        if not self.active_hooks:
+            return []
+
+        if not hooks or "all" in hooks:
+            disabled = self.disable_all_hooks()
+            return [
+                {"hook": info["hook"], "status": "disabled", "context": info.get("context")}
+                for info in disabled
+            ]
+
+        hooks_to_disable = [hook for hook in hooks if hook in self.active_hooks]
+        if not hooks_to_disable:
+            return []
+
+        remaining = [hook for hook in self.active_hooks if hook not in hooks_to_disable]
+        remaining_contexts = {hook: dict(self.active_context.get(hook, {})) for hook in remaining}
+        disabled_contexts = {hook: dict(self.active_context.get(hook, {})) for hook in hooks_to_disable}
+        self.disable_all_hooks()
+        for hook, context in remaining_contexts.items():
+            self.enable_hooks([hook], target_info=context)
+
+        return [
+            {"hook": name, "status": "disabled", "context": disabled_contexts.get(name)}
+            for name in hooks_to_disable
         ]
 
-        for hook_func in hooks_to_enable:
-            try:
-                hook_func()
-                self.active_hooks.append(hook_func.__name__)
-            except Exception as e:
-                print(f"Failed to enable {hook_func.__name__}: {e}")
-
-    def disable_all_hooks(self):
-        """Disable all active hooks"""
+    def disable_all_hooks(self) -> List[Dict[str, Any]]:
+        """Disable all active hooks."""
+        disabled = [
+            {
+                "hook": hook,
+                "context": dict(self.active_context.get(hook, {})),
+            }
+            for hook in self.active_hooks
+        ]
         self.hooker.unhook_all()
         self.active_hooks.clear()
+        self.active_context.clear()
+        return disabled
+
+    def get_status(self) -> Dict[str, Any]:
+        return {
+            "available_hooks": self.list_available_hooks(),
+            "profiles": {name: list(hooks) for name, hooks in self._profiles.items()},
+            "active_hooks": list(self.active_hooks),
+            "contexts": {hook: self.active_context.get(hook) for hook in self.active_hooks},
+            "intercepted_calls": len(self.get_intercepted_calls()),
+        }
 
     def get_intercepted_calls(self) -> List[Dict]:
-        """Get all intercepted API calls"""
+        """Get all intercepted API calls."""
         return self.common_hooks.intercepted_calls
 
     def clear_intercepted_calls(self):
-        """Clear the log of intercepted calls"""
+        """Clear the log of intercepted calls."""
         self.common_hooks.intercepted_calls.clear()
