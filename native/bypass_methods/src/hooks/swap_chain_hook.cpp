@@ -13,10 +13,7 @@ namespace DXHook {
 
 using Hooks::D3D11DeviceContextWrapper;
 using Hooks::D3D11DeviceWrapper;
-using Hooks::D3D11Texture2DWrapper;
 using Hooks::DXGISwapChainWrapper;
-using Hooks::GetInterface;
-using Hooks::GetInterfaceChecked;
 
 // Static instance for callback from static hook methods
 SwapChainHook* SwapChainHook::s_instance = nullptr;

@@ -4,6 +4,7 @@
 #include <string>
 #include <unordered_map>
 #include <cstdint>
+#include <utility>
 
 namespace UndownUnlock {
 namespace DXHook {
@@ -19,6 +20,8 @@ struct SignaturePattern {
     std::string moduleOrSection;
     std::string description;
 };
+
+std::pair<std::vector<uint8_t>, std::string> ParsePattern(const std::string& pattern);
 
 /**
  * @brief DirectX interfaces and their vtable layouts

@@ -5,6 +5,9 @@
 #include "../../include/performance_monitor.h"
 #include <iostream>
 #include <dxgi.h>
+#include <dxgi1_2.h>
+#include <dxgi1_4.h>
+#include <dxgi1_5.h>
 #include <d3d11.h>
 #include <iomanip>
 #include <sstream>
@@ -416,3 +419,4 @@ std::unordered_map<std::string, DXInterface> GetDXInterfaces() {
 } // namespace Signatures
 } // namespace DXHook
 } // namespace UndownUnlock 
+

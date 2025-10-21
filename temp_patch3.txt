@@ -1,0 +1,45 @@
+*** Begin Patch
+*** Update File: security-testing-framework/native/bypass_methods/src/performance_monitor.cpp
+@@
+-PerformanceMonitor::Timer::Timer(PerformanceMonitor& monitor, std::string name)
+-    : monitor_(&monitor),
+-      name_(std::move(name)),
+-      start_(std::chrono::steady_clock::now()),
+-      stopped_(false),
+-      elapsed_ms_(0.0),
+-      inner_timer_(name_) {}
++PerformanceMonitor::Timer::Timer(PerformanceMonitor& monitor, std::string name)
++    : monitor_(&monitor),
++      raw_name_(std::move(name)),
++      qualified_name_(monitor.qualify(raw_name_)),
++      start_(std::chrono::steady_clock::now()),
++      stopped_(false),
++      elapsed_ms_(0.0),
++      inner_timer_(qualified_name_) {}
+@@
+-    : monitor_(other.monitor_),
+-      name_(std::move(other.name_)),
++    : monitor_(other.monitor_),
++      raw_name_(std::move(other.raw_name_)),
++      qualified_name_(std::move(other.qualified_name_)),
+       start_(other.start_),
+       stopped_(other.stopped_),
+       elapsed_ms_(other.elapsed_ms_),
+       inner_timer_(std::move(other.inner_timer_)) {
+@@
+-        monitor_ = other.monitor_;
+-        name_ = std::move(other.name_);
++        monitor_ = other.monitor_;
++        raw_name_ = std::move(other.raw_name_);
++        qualified_name_ = std::move(other.qualified_name_);
+         start_ = other.start_;
+         stopped_ = other.stopped_;
+         elapsed_ms_ = other.elapsed_ms_;
+         inner_timer_ = std::move(other.inner_timer_);
+@@
+-    if (monitor_) {
+-        monitor_->record_operation(name_, elapsed_ms_);
++    if (monitor_) {
++        monitor_->record_operation(raw_name_, elapsed_ms_);
+     }
+*** End Patch

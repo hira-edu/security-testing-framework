@@ -14,12 +14,16 @@
 #include <chrono>
 #include <unordered_map>
 
+#include "../error_handler.h"
+#include "../performance_monitor.h"
+#include "../memory_tracker.h"
+
 namespace UndownUnlock::Optimization {
 
-// Forward declarations
-class ErrorHandler;
-class PerformanceMonitor;
-class MemoryTracker;
+// Forward declarations / facade aliases
+using ErrorHandler = ::ErrorHandler;
+using PerformanceMonitor = ::PerformanceMonitor;
+using MemoryTracker = ::MemoryTracker;
 
 /**
  * Task priority levels
@@ -214,7 +218,7 @@ private:
     
     ThreadPoolStats stats_;
     std::chrono::system_clock::time_point last_cleanup_;
-    std::atomic<size_t> task_id_counter_;
+    mutable std::atomic<size_t> task_id_counter_;
     
     // Performance monitoring
     ErrorHandler* error_handler_;

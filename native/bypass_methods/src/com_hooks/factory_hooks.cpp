@@ -1,7 +1,9 @@
 #include "../../include/com_hooks/factory_hooks.h"
 #include "../../include/dx_hook_core.h"
 #include "../../include/hooks/com_interface_wrapper.h"
+#include <cstdint>
 #include <iostream>
+#include <type_traits>
 
 namespace UndownUnlock {
 namespace DXHook {
@@ -31,35 +33,55 @@ FactoryHooks& FactoryHooks::GetInstance() {
 bool FactoryHooks::Initialize() {
     std::cout << "Initializing DXGI Factory hooks..." << std::endl;
     
+    auto installTypedHook = [&](auto& storage, std::uintptr_t hookAddress, const char* moduleName, const char* functionName) {
+        std::uintptr_t originalAddress = 0;
+        bool installed = InstallHook(originalAddress, hookAddress, moduleName, functionName);
+        if (installed) {
+            using StorageType = std::decay_t<decltype(storage)>;
+            storage = reinterpret_cast<StorageType>(originalAddress);
+        }
+        return installed;
+    };
+    
     // Install hooks for factory creation functions
-    bool factory = InstallHook(
-        reinterpret_cast<void**>(&m_originalCreateDXGIFactory),
-        reinterpret_cast<void*>(HookCreateDXGIFactory),
+    auto factoryHookFn = static_cast<CreateDXGIFactory_t>(&FactoryHooks::HookCreateDXGIFactory);
+    auto factoryHookAddress = reinterpret_cast<std::uintptr_t>(factoryHookFn);
+    bool factory = installTypedHook(
+        m_originalCreateDXGIFactory,
+        factoryHookAddress,
         "dxgi.dll", "CreateDXGIFactory"
     );
     
-    bool factory1 = InstallHook(
-        reinterpret_cast<void**>(&m_originalCreateDXGIFactory1),
-        reinterpret_cast<void*>(HookCreateDXGIFactory1),
+    auto factory1HookFn = static_cast<CreateDXGIFactory1_t>(&FactoryHooks::HookCreateDXGIFactory1);
+    auto factory1HookAddress = reinterpret_cast<std::uintptr_t>(factory1HookFn);
+    bool factory1 = installTypedHook(
+        m_originalCreateDXGIFactory1,
+        factory1HookAddress,
         "dxgi.dll", "CreateDXGIFactory1"
     );
     
-    bool factory2 = InstallHook(
-        reinterpret_cast<void**>(&m_originalCreateDXGIFactory2),
-        reinterpret_cast<void*>(HookCreateDXGIFactory2),
+    auto factory2HookFn = static_cast<CreateDXGIFactory2_t>(&FactoryHooks::HookCreateDXGIFactory2);
+    auto factory2HookAddress = reinterpret_cast<std::uintptr_t>(factory2HookFn);
+    bool factory2 = installTypedHook(
+        m_originalCreateDXGIFactory2,
+        factory2HookAddress,
         "dxgi.dll", "CreateDXGIFactory2"
     );
     
     // Install hooks for device creation functions
-    bool device = InstallHook(
-        reinterpret_cast<void**>(&m_originalD3D11CreateDevice),
-        reinterpret_cast<void*>(HookD3D11CreateDevice),
+    auto deviceHookFn = static_cast<D3D11CreateDevice_t>(&FactoryHooks::HookD3D11CreateDevice);
+    auto deviceHookAddress = reinterpret_cast<std::uintptr_t>(deviceHookFn);
+    bool device = installTypedHook(
+        m_originalD3D11CreateDevice,
+        deviceHookAddress,
         "d3d11.dll", "D3D11CreateDevice"
     );
     
-    bool deviceAndSwapChain = InstallHook(
-        reinterpret_cast<void**>(&m_originalD3D11CreateDeviceAndSwapChain),
-        reinterpret_cast<void*>(HookD3D11CreateDeviceAndSwapChain),
+    auto deviceAndSwapChainHookFn = static_cast<D3D11CreateDeviceAndSwapChain_t>(&FactoryHooks::HookD3D11CreateDeviceAndSwapChain);
+    auto deviceAndSwapChainHookAddress = reinterpret_cast<std::uintptr_t>(deviceAndSwapChainHookFn);
+    bool deviceAndSwapChain = installTypedHook(
+        m_originalD3D11CreateDeviceAndSwapChain,
+        deviceAndSwapChainHookAddress,
         "d3d11.dll", "D3D11CreateDeviceAndSwapChain"
     );
     
@@ -131,7 +153,7 @@ void* FactoryHooks::GetRealFunctionAddress(const char* moduleName, const char* f
     return funcAddr;
 }
 
-bool FactoryHooks::InstallHook(void** originalFunction, void* hookFunction, const char* moduleName, const char* functionName) {
+bool FactoryHooks::InstallHook(std::uintptr_t& originalAddress, std::uintptr_t hookAddress, const char* moduleName, const char* functionName) {
     // Get the real function address
     void* realFunc = GetRealFunctionAddress(moduleName, functionName);
     if (!realFunc) {
@@ -139,7 +161,7 @@ bool FactoryHooks::InstallHook(void** originalFunction, void* hookFunction, cons
     }
     
     // Store the original function
-    *originalFunction = realFunc;
+    originalAddress = reinterpret_cast<std::uintptr_t>(realFunc);
     
     // Install the hook using VirtualProtect
     DWORD oldProtect;
@@ -150,9 +172,10 @@ bool FactoryHooks::InstallHook(void** originalFunction, void* hookFunction, cons
     
     // Create a relative jump to our hook function
     // Format: E9 xx xx xx xx (JMP rel32)
-    DWORD relativeAddress = (DWORD)hookFunction - (DWORD)realFunc - 5;
+    auto realAddress = reinterpret_cast<std::uintptr_t>(realFunc);
+    DWORD relativeAddress = static_cast<DWORD>(hookAddress - realAddress - 5);
     
-    uint8_t* funcBytes = (uint8_t*)realFunc;
+    auto funcBytes = reinterpret_cast<std::uint8_t*>(realFunc);
     funcBytes[0] = 0xE9; // JMP opcode
     *(DWORD*)(&funcBytes[1]) = relativeAddress;
     
@@ -374,3 +397,4 @@ HRESULT STDMETHODCALLTYPE FactoryHooks::HookFactoryCreateSwapChain(
 
 } // namespace DXHook
 } // namespace UndownUnlock 
+

@@ -5,7 +5,7 @@
 include(FetchContent)
 
 # Set up dependency versions
-set(GOOGLETEST_VERSION "release-1.11.0")
+set(GOOGLETEST_VERSION "v1.14.0")
 set(DIRECTX_HEADERS_VERSION "v1.4.10")
 
 # Google Test dependency

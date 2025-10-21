@@ -7,11 +7,10 @@
 #include <memory>
 #include <functional>
 #include "hooks/com_interface_wrapper.h"
+#include "raii_wrappers.h"
 
 namespace UndownUnlock {
 namespace DXHook {
-
-using Hooks::D3D11Texture2DWrapper;
 
 // Forward declarations
 struct FrameData;
@@ -68,7 +67,7 @@ public:
 private:
     ID3D11Device* m_device;                       // D3D11 device
     ID3D11DeviceContext* m_deviceContext;         // D3D11 device context
-    D3D11Texture2DWrapper m_stagingTextureWrapper; // RAII wrapper for staging texture
+    Hooks::D3D11Texture2DWrapper m_stagingTextureWrapper; // RAII wrapper for staging texture
     uint32_t m_currentWidth;                      // Current frame width
     uint32_t m_currentHeight;                     // Current frame height
     DXGI_FORMAT m_currentFormat;                  // Current frame format

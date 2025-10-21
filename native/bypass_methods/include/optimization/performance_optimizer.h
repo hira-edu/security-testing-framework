@@ -1,5 +1,8 @@
 #pragma once
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <string>
 #include <memory>
@@ -11,15 +14,16 @@
 #include <functional>
 #include <algorithm>
 
-#include "../utils/error_handler.h"
-#include "../utils/performance_monitor.h"
-#include "../utils/memory_tracker.h"
+#include "../error_handler.h"
+#include "../performance_monitor.h"
+#include "../memory_tracker.h"
 
 namespace UndownUnlock::Optimization {
 
-using ErrorHandler = utils::ErrorHandler;
-using PerformanceMonitor = utils::PerformanceMonitor;
-using MemoryTracker = utils::MemoryTracker;
+// Forward declarations / facade aliases
+using ErrorHandler = ::ErrorHandler;
+using PerformanceMonitor = ::PerformanceMonitor;
+using MemoryTracker = ::MemoryTracker;
 class MemoryPool;
 class ThreadPool;
 
@@ -361,3 +365,4 @@ namespace PerformanceOptimizerUtils {
 }
 
 } // namespace UndownUnlock::Optimization 
+

@@ -1,0 +1,107 @@
+*** Begin Patch
+*** Update File: security-testing-framework/native/bypass_methods/src/performance_monitor.cpp
+@@
+-PerformanceMonitor::PerformanceMonitor()
+-    : initialized_(true),
+-      next_operation_id_(1),
+-      native_monitor_(&utils::PerformanceMonitor::get_instance()) {
+-    summary_ = {};
+-}
++PerformanceMonitor::PerformanceMonitor()
++    : PerformanceMonitor("") {}
++
++PerformanceMonitor::PerformanceMonitor(std::string component)
++    : initialized_(true),
++      next_operation_id_(1),
++      native_monitor_(&utils::PerformanceMonitor::get_instance()),
++      component_(std::move(component)) {
++    summary_ = {};
++}
+@@
+-PerformanceMonitor* PerformanceMonitor::GetInstance() {
+-    std::lock_guard<std::mutex> lock(g_performance_monitor_instance_mutex);
+-    if (!g_performance_monitor_instance) {
+-        g_performance_monitor_instance = new PerformanceMonitor();
+-    }
+-    return g_performance_monitor_instance;
++PerformanceMonitor& PerformanceMonitor::GetInstance() {
++    std::lock_guard<std::mutex> lock(g_performance_monitor_instance_mutex);
++    if (!g_performance_monitor_instance) {
++        g_performance_monitor_instance = new PerformanceMonitor();
++    }
++    return *g_performance_monitor_instance;
+ }
+@@
+-PerformanceMonitor::Timer PerformanceMonitor::StartTimer(const std::string& name) {
+-    return Timer(*GetInstance(), name);
++PerformanceMonitor::Timer PerformanceMonitor::StartTimer(const std::string& name) {
++    return Timer(GetInstance(), qualify(name));
+ }
+@@
+-    OperationRecord record;
+-    record.name = name;
++    OperationRecord record;
++    record.name = qualify(name);
+@@
+-    std::size_t id = next_operation_id_.fetch_add(1, std::memory_order_relaxed);
++    std::size_t id = next_operation_id_.fetch_add(1, std::memory_order_relaxed);
+     OperationRecord record;
+-    record.name = name;
++    record.name = qualify(name);
+@@
+-    finalize_operation_locked(operation_id, record.name, duration_ms);
++    finalize_operation_locked(operation_id, record.name, duration_ms);
+@@
+-void PerformanceMonitor::record_operation(const std::string& name, double duration_ms) {
+-    std::size_t id = next_operation_id_.fetch_add(1, std::memory_order_relaxed);
++void PerformanceMonitor::record_operation(const std::string& name, double duration_ms) {
++    std::size_t id = next_operation_id_.fetch_add(1, std::memory_order_relaxed);
+ 
+     {
+         std::lock_guard<std::mutex> lock(mutex_);
+-        finalize_operation_locked(id, name, duration_ms);
++        finalize_operation_locked(id, qualify(name), duration_ms);
+     }
+ 
+     if (native_monitor_) {
+-        native_monitor_->record_timer(name, duration_ms, "");
++        native_monitor_->record_timer(qualify(name), duration_ms, "");
+     }
+ }
+@@
+-    auto it = active_operations_.find(operation_id);
++    auto it = active_operations_.find(operation_id);
+@@
+-    auto threshold_it = slow_thresholds_.find(it->second.name);
++    auto threshold_it = slow_thresholds_.find(it->second.name);
+@@
+-std::unordered_map<std::string, OperationStatistics> PerformanceMonitor::GetAllStats() const {
++std::unordered_map<std::string, OperationStatistics> PerformanceMonitor::GetAllStats() const {
+@@
+-OperationStatistics PerformanceMonitor::GetTimerStats(const std::string& name) const {
++OperationStatistics PerformanceMonitor::GetTimerStats(const std::string& name) const {
+     std::lock_guard<std::mutex> lock(mutex_);
+-    auto it = statistics_.find(name);
++    auto it = statistics_.find(qualify(name));
+     if (it == statistics_.end()) {
+         return OperationStatistics{};
+     }
+     return it->second;
+ }
+@@
+-    auto& stats = statistics_[name];
++    auto& stats = statistics_[name];
+@@
+-    auto threshold_it = slow_thresholds_.find(name);
++    auto threshold_it = slow_thresholds_.find(name);
+@@
+     summary_.total_duration_ms += duration_ms;
+ }
++
++std::string PerformanceMonitor::qualify(const std::string& name) const {
++    if (component_.empty()) {
++        return name;
++    }
++    return component_ + ":" + name;
++}
+*** End Patch

@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <deque>
 #include <unordered_map>
 #include <mutex>
 #include <atomic>

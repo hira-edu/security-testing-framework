@@ -1,12 +1,11 @@
 #include "../../include/optimization/memory_pool.h"
-#include "../../include/utils/error_handler.h"
-#include "../../include/utils/performance_monitor.h"
-#include "../../include/utils/memory_tracker.h"
+#include "../../include/error_handler.h"
+#include "../../include/performance_monitor.h"
+#include "../../include/memory_tracker.h"
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
 #include <cstring>
-#include <zlib.h>
 
 namespace UndownUnlock::Optimization {
 
@@ -18,19 +17,19 @@ MemoryPool::MemoryPool(const MemoryPoolConfig& config)
     : config_(config), cleanup_running_(false) {
     
     // Initialize utility components
-    error_handler_ = &utils::ErrorHandler::GetInstance();
-    performance_monitor_ = &utils::PerformanceMonitor::GetInstance();
-    memory_tracker_ = &utils::MemoryTracker::GetInstance();
+    error_handler_ = &ErrorHandler::GetInstance();
+    performance_monitor_ = &PerformanceMonitor::GetInstance();
+    memory_tracker_ = &MemoryTracker::GetInstance();
     
     // Set error context
-    utils::ErrorContext context;
+    ErrorContext context;
     context.set("component", "MemoryPool");
     context.set("operation", "initialization");
     error_handler_->set_error_context(context);
     
     error_handler_->info(
         "Initializing Memory Pool with config: " + std::to_string(config.initial_pool_size) + " bytes",
-        utils::ErrorCategory::MEMORY,
+        ErrorCategory::MEMORY,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -42,16 +41,16 @@ MemoryPool::MemoryPool(const MemoryPoolConfig& config)
     performance_monitor_->end_operation(init_operation);
     
     // Track memory allocation for the pool
-    auto pool_allocation = memory_tracker_->track_allocation(
-        "memory_pool", config.initial_pool_size, utils::MemoryCategory::SYSTEM
+    auto pool_allocation = memory_tracker_->TrackAllocation(
+        "memory_pool", config.initial_pool_size, MemoryCategory::SYSTEM
     );
-    memory_tracker_->release_allocation(pool_allocation);
+    memory_tracker_->ReleaseAllocation(pool_allocation);
 }
 
 MemoryPool::~MemoryPool() {
     error_handler_->info(
         "Shutting down Memory Pool",
-        utils::ErrorCategory::MEMORY,
+        ErrorCategory::MEMORY,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -93,7 +92,7 @@ void* MemoryPool::allocate(size_t size, size_t alignment, const std::string& typ
     auto alloc_operation = performance_monitor_->start_operation("memory_pool_allocation");
     
     // Set error context
-    utils::ErrorContext context;
+    ErrorContext context;
     context.set("component", "MemoryPool");
     context.set("operation", "allocation");
     context.set("size", std::to_string(size));
@@ -112,7 +111,7 @@ void* MemoryPool::allocate(size_t size, size_t alignment, const std::string& typ
             if (!block) {
                 error_handler_->error(
                     "Failed to allocate new memory block of size " + std::to_string(size),
-                    utils::ErrorCategory::MEMORY,
+                    ErrorCategory::MEMORY,
                     __FUNCTION__, __FILE__, __LINE__
                 );
                 performance_monitor_->end_operation(alloc_operation);
@@ -137,14 +136,14 @@ void* MemoryPool::allocate(size_t size, size_t alignment, const std::string& typ
         update_statistics(block, true);
         
         // Track allocation
-        auto memory_allocation = memory_tracker_->track_allocation(
-            "pool_" + type, size, utils::MemoryCategory::SYSTEM
+        auto memory_allocation = memory_tracker_->TrackAllocation(
+            "pool_" + type, size, MemoryCategory::SYSTEM
         );
-        memory_tracker_->release_allocation(memory_allocation);
+        memory_tracker_->ReleaseAllocation(memory_allocation);
         
         error_handler_->debug(
             "Allocated " + std::to_string(size) + " bytes from pool for type: " + type,
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         
@@ -154,7 +153,7 @@ void* MemoryPool::allocate(size_t size, size_t alignment, const std::string& typ
     } catch (const std::exception& e) {
         error_handler_->error(
             "Exception during memory allocation: " + std::string(e.what()),
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         performance_monitor_->end_operation(alloc_operation);
@@ -177,7 +176,7 @@ void MemoryPool::deallocate(void* address) {
         if (it == address_to_block_.end()) {
             error_handler_->warning(
                 "Attempting to deallocate address not from pool: " + std::to_string(reinterpret_cast<uintptr_t>(address)),
-                utils::ErrorCategory::MEMORY,
+                ErrorCategory::MEMORY,
                 __FUNCTION__, __FILE__, __LINE__
             );
             performance_monitor_->end_operation(dealloc_operation);
@@ -197,7 +196,7 @@ void MemoryPool::deallocate(void* address) {
         
         error_handler_->debug(
             "Deallocated " + std::to_string(block->size) + " bytes from pool",
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         
@@ -206,7 +205,7 @@ void MemoryPool::deallocate(void* address) {
     } catch (const std::exception& e) {
         error_handler_->error(
             "Exception during memory deallocation: " + std::string(e.what()),
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         performance_monitor_->end_operation(dealloc_operation);
@@ -229,7 +228,7 @@ void* MemoryPool::reallocate(void* address, size_t new_size, size_t alignment) {
     if (it == address_to_block_.end()) {
         error_handler_->warning(
             "Attempting to reallocate address not from pool",
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         return nullptr;
@@ -271,7 +270,7 @@ void MemoryPool::cleanup() {
         
         error_handler_->info(
             "Memory pool cleanup completed",
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         
@@ -280,7 +279,7 @@ void MemoryPool::cleanup() {
     } catch (const std::exception& e) {
         error_handler_->error(
             "Exception during memory pool cleanup: " + std::string(e.what()),
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         performance_monitor_->end_operation(cleanup_operation);
@@ -299,7 +298,7 @@ void MemoryPool::defragment() {
         
         error_handler_->info(
             "Memory pool defragmentation completed",
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         
@@ -308,7 +307,7 @@ void MemoryPool::defragment() {
     } catch (const std::exception& e) {
         error_handler_->error(
             "Exception during memory pool defragmentation: " + std::string(e.what()),
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         performance_monitor_->end_operation(defrag_operation);
@@ -320,13 +319,13 @@ void MemoryPool::resize(size_t new_size) {
         config_.initial_pool_size = new_size;
         error_handler_->info(
             "Memory pool resized to " + std::to_string(new_size) + " bytes",
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
     } else {
         error_handler_->warning(
             "Requested pool size " + std::to_string(new_size) + " exceeds maximum " + std::to_string(config_.max_pool_size),
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -347,7 +346,7 @@ void MemoryPool::clear() {
     
     error_handler_->info(
         "Memory pool cleared",
-        utils::ErrorCategory::MEMORY,
+        ErrorCategory::MEMORY,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -355,12 +354,27 @@ void MemoryPool::clear() {
 MemoryPoolStats MemoryPool::get_stats() const {
     std::lock_guard<std::mutex> lock(stats_mutex_);
     
-    MemoryPoolStats current_stats = stats_;
+    MemoryPoolStats current_stats;
+    current_stats.total_allocations.store(stats_.total_allocations.load());
+    current_stats.total_deallocations.store(stats_.total_deallocations.load());
+    current_stats.current_allocations.store(stats_.current_allocations.load());
+    current_stats.total_bytes_allocated.store(stats_.total_bytes_allocated.load());
+    current_stats.total_bytes_deallocated.store(stats_.total_bytes_deallocated.load());
+    current_stats.current_bytes_allocated.store(stats_.current_bytes_allocated.load());
+    current_stats.peak_bytes_allocated.store(stats_.peak_bytes_allocated.load());
+    current_stats.peak_allocations.store(stats_.peak_allocations.load());
+    current_stats.pool_hits.store(stats_.pool_hits.load());
+    current_stats.pool_misses.store(stats_.pool_misses.load());
+    current_stats.hit_ratio.store(stats_.hit_ratio.load());
+    current_stats.start_time = stats_.start_time;
+    current_stats.last_cleanup_time = stats_.last_cleanup_time;
     
     // Calculate hit ratio
     size_t total_requests = current_stats.pool_hits.load() + current_stats.pool_misses.load();
     if (total_requests > 0) {
         current_stats.hit_ratio.store(static_cast<double>(current_stats.pool_hits.load()) / total_requests);
+    } else {
+        current_stats.hit_ratio.store(0.0);
     }
     
     return current_stats;
@@ -368,8 +382,19 @@ MemoryPoolStats MemoryPool::get_stats() const {
 
 void MemoryPool::reset_stats() {
     std::lock_guard<std::mutex> lock(stats_mutex_);
-    stats_ = MemoryPoolStats();
+    stats_.total_allocations.store(0);
+    stats_.total_deallocations.store(0);
+    stats_.current_allocations.store(0);
+    stats_.total_bytes_allocated.store(0);
+    stats_.total_bytes_deallocated.store(0);
+    stats_.current_bytes_allocated.store(0);
+    stats_.peak_bytes_allocated.store(0);
+    stats_.peak_allocations.store(0);
+    stats_.pool_hits.store(0);
+    stats_.pool_misses.store(0);
+    stats_.hit_ratio.store(0.0);
     stats_.start_time = std::chrono::system_clock::now();
+    stats_.last_cleanup_time = {};
 }
 
 void MemoryPool::print_stats() const {
@@ -387,7 +412,7 @@ void MemoryPool::print_stats() const {
     ss << "Pool Misses: " << stats.pool_misses.load() << std::endl;
     ss << "Hit Ratio: " << std::fixed << std::setprecision(2) << (stats.hit_ratio.load() * 100.0) << "%" << std::endl;
     
-    error_handler_->info(ss.str(), utils::ErrorCategory::MEMORY, __FUNCTION__, __FILE__, __LINE__);
+    error_handler_->info(ss.str(), ErrorCategory::MEMORY, __FUNCTION__, __FILE__, __LINE__);
 }
 
 void MemoryPool::set_config(const MemoryPoolConfig& config) {
@@ -443,7 +468,7 @@ void MemoryPool::initialize_pool() {
     if (!pool_memory) {
         error_handler_->error(
             "Failed to allocate initial pool memory",
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         return;
@@ -498,7 +523,7 @@ MemoryBlock* MemoryPool::allocate_new_block(size_t size, size_t alignment) {
     if (current_total + aligned_size > config_.max_pool_size) {
         error_handler_->warning(
             "Cannot allocate new block: would exceed max pool size",
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         return nullptr;
@@ -510,7 +535,7 @@ MemoryBlock* MemoryPool::allocate_new_block(size_t size, size_t alignment) {
     if (!new_memory) {
         error_handler_->error(
             "Failed to allocate new memory block",
-            utils::ErrorCategory::MEMORY,
+            ErrorCategory::MEMORY,
             __FUNCTION__, __FILE__, __LINE__
         );
         return nullptr;
@@ -616,7 +641,7 @@ void MemoryPool::compress_block(MemoryBlock* block) {
     // For now, this is a placeholder
     error_handler_->debug(
         "Compression not implemented in this build",
-        utils::ErrorCategory::MEMORY,
+        ErrorCategory::MEMORY,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -630,7 +655,7 @@ void MemoryPool::decompress_block(MemoryBlock* block) {
     // For now, this is a placeholder
     error_handler_->debug(
         "Decompression not implemented in this build",
-        utils::ErrorCategory::MEMORY,
+        ErrorCategory::MEMORY,
         __FUNCTION__, __FILE__, __LINE__
     );
 }

@@ -1,0 +1,13 @@
+*** Begin Patch
+*** Update File: security-testing-framework/native/bypass_methods/include/performance_monitor.h
+@@
+-        PerformanceMonitor* monitor_;
+-        std::string name_;
++        PerformanceMonitor* monitor_;
++        std::string raw_name_;
++        std::string qualified_name_;
+         std::chrono::steady_clock::time_point start_;
+         bool stopped_;
+         double elapsed_ms_;
+         utils::PerformanceMonitor::ScopedTimer inner_timer_;
+*** End Patch

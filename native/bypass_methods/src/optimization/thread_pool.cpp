@@ -1,7 +1,7 @@
 #include "../../include/optimization/thread_pool.h"
-#include "../../include/utils/error_handler.h"
-#include "../../include/utils/performance_monitor.h"
-#include "../../include/utils/memory_tracker.h"
+#include "../../include/error_handler.h"
+#include "../../include/performance_monitor.h"
+#include "../../include/memory_tracker.h"
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
@@ -18,19 +18,19 @@ ThreadPool::ThreadPool(const ThreadPoolConfig& config)
       active_thread_count_(0), idle_thread_count_(0), task_id_counter_(0) {
     
     // Initialize utility components
-    error_handler_ = &utils::ErrorHandler::GetInstance();
-    performance_monitor_ = &utils::PerformanceMonitor::GetInstance();
-    memory_tracker_ = &utils::MemoryTracker::GetInstance();
+    error_handler_ = &ErrorHandler::GetInstance();
+    performance_monitor_ = &PerformanceMonitor::GetInstance();
+    memory_tracker_ = &MemoryTracker::GetInstance();
     
     // Set error context
-    utils::ErrorContext context;
+    ErrorContext context;
     context.set("component", "ThreadPool");
     context.set("operation", "initialization");
     error_handler_->set_error_context(context);
     
     error_handler_->info(
         "Initializing Thread Pool with " + std::to_string(config.min_threads) + " to " + std::to_string(config.max_threads) + " threads",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -39,10 +39,10 @@ ThreadPool::ThreadPool(const ThreadPoolConfig& config)
     performance_monitor_->end_operation(init_operation);
     
     // Track memory allocation for the pool
-    auto pool_allocation = memory_tracker_->track_allocation(
-        "thread_pool", sizeof(ThreadPool), utils::MemoryCategory::SYSTEM
+    auto pool_allocation = memory_tracker_->TrackAllocation(
+        "thread_pool", sizeof(ThreadPool), MemoryCategory::SYSTEM
     );
-    memory_tracker_->release_allocation(pool_allocation);
+    memory_tracker_->ReleaseAllocation(pool_allocation);
     
     stats_.start_time = std::chrono::system_clock::now();
     last_cleanup_ = std::chrono::system_clock::now();
@@ -51,7 +51,7 @@ ThreadPool::ThreadPool(const ThreadPoolConfig& config)
 ThreadPool::~ThreadPool() {
     error_handler_->info(
         "Shutting down Thread Pool",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -87,7 +87,7 @@ void ThreadPool::start() {
     if (!worker_threads_.empty()) {
         error_handler_->warning(
             "Thread pool is already running",
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
         return;
@@ -98,7 +98,7 @@ void ThreadPool::start() {
     
     error_handler_->info(
         "Starting Thread Pool with " + std::to_string(config_.min_threads) + " threads",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -118,7 +118,7 @@ void ThreadPool::stop() {
     
     error_handler_->info(
         "Stopping Thread Pool",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -157,7 +157,7 @@ void ThreadPool::pause() {
     pause_flag_.store(true);
     error_handler_->info(
         "Thread Pool paused",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -167,7 +167,7 @@ void ThreadPool::resume() {
     condition_.notify_all();
     error_handler_->info(
         "Thread Pool resumed",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -178,7 +178,7 @@ void ThreadPool::resize(size_t new_thread_count) {
             "Invalid thread count: " + std::to_string(new_thread_count) + 
             " (must be between " + std::to_string(config_.min_threads) + 
             " and " + std::to_string(config_.max_threads) + ")",
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
         return;
@@ -198,14 +198,14 @@ void ThreadPool::resize(size_t new_thread_count) {
         // For now, we'll just let them finish naturally
         error_handler_->info(
             "Thread count will be reduced naturally as threads complete their work",
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
     
     error_handler_->info(
         "Thread Pool resized to " + std::to_string(new_thread_count) + " threads",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -220,7 +220,7 @@ void ThreadPool::cancel_task(const std::string& task_id) {
         
         error_handler_->info(
             "Task cancelled: " + task_id,
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -238,7 +238,7 @@ void ThreadPool::cancel_all_tasks() {
     
     error_handler_->info(
         "All pending tasks cancelled",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -293,7 +293,19 @@ ThreadPoolStats ThreadPool::get_stats() const {
 
 void ThreadPool::reset_stats() {
     std::lock_guard<std::mutex> lock(stats_mutex_);
-    stats_ = ThreadPoolStats();
+    stats_.total_tasks_submitted.store(0);
+    stats_.total_tasks_completed.store(0);
+    stats_.total_tasks_failed.store(0);
+    stats_.total_tasks_cancelled.store(0);
+    stats_.current_tasks_queued.store(0);
+    stats_.current_tasks_running.store(0);
+    stats_.current_threads_active.store(0);
+    stats_.current_threads_idle.store(0);
+    stats_.peak_threads_active.store(0);
+    stats_.peak_queue_size.store(0);
+    stats_.average_task_duration_ms.store(0.0);
+    stats_.throughput_tasks_per_second.store(0.0);
+    stats_.last_task_time = {};
     stats_.start_time = std::chrono::system_clock::now();
 }
 
@@ -315,7 +327,7 @@ void ThreadPool::print_stats() const {
     ss << "Average Task Duration: " << std::fixed << std::setprecision(2) << stats.average_task_duration_ms.load() << "ms" << std::endl;
     ss << "Throughput: " << std::fixed << std::setprecision(2) << stats.throughput_tasks_per_second.load() << " tasks/sec" << std::endl;
     
-    error_handler_->info(ss.str(), utils::ErrorCategory::SYSTEM, __FUNCTION__, __FILE__, __LINE__);
+    error_handler_->info(ss.str(), ErrorCategory::SYSTEM, __FUNCTION__, __FILE__, __LINE__);
 }
 
 void ThreadPool::set_config(const ThreadPoolConfig& config) {
@@ -350,7 +362,7 @@ void ThreadPool::worker_thread_function(size_t thread_id) {
     std::string thread_name = config_.thread_name_prefix + "_" + std::to_string(thread_id);
     
     // Set error context
-    utils::ErrorContext context;
+    ErrorContext context;
     context.set("component", "ThreadPool");
     context.set("operation", "worker_thread");
     context.set("thread_id", std::to_string(thread_id));
@@ -359,7 +371,7 @@ void ThreadPool::worker_thread_function(size_t thread_id) {
     
     error_handler_->debug(
         "Worker thread started: " + thread_name,
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -414,14 +426,14 @@ void ThreadPool::worker_thread_function(size_t thread_id) {
     
     error_handler_->debug(
         "Worker thread stopped: " + thread_name,
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
 
 void ThreadPool::process_task(PrioritizedTask& task) {
     // Set error context
-    utils::ErrorContext context;
+    ErrorContext context;
     context.set("component", "ThreadPool");
     context.set("operation", "process_task");
     context.set("task_id", task.task_id);
@@ -456,7 +468,7 @@ void ThreadPool::process_task(PrioritizedTask& task) {
         
         error_handler_->debug(
             "Task completed: " + task.task_id + " in " + std::to_string(task.task_info->duration.count()) + "ms",
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
         
@@ -476,7 +488,7 @@ void ThreadPool::process_task(PrioritizedTask& task) {
         
         error_handler_->error(
             "Task failed: " + task.task_id + " - " + std::string(e.what()),
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -530,7 +542,7 @@ void ThreadPool::adjust_thread_count() {
     // For now, it's a placeholder
     error_handler_->debug(
         "Thread count adjustment not implemented in this build",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -544,7 +556,7 @@ std::string ThreadPool::generate_task_id() const {
 void ThreadPool::log_task_event(const std::string& task_id, const std::string& event, const std::string& details) {
     error_handler_->debug(
         "Task event: " + task_id + " - " + event + (details.empty() ? "" : " - " + details),
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }

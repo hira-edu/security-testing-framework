@@ -4,6 +4,7 @@
 #include <dxgi.h>
 #include <dxgi1_2.h>
 #include <d3d11.h>
+#include <cstdint>
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -104,7 +105,7 @@ private:
 
     // Helper functions
     void* GetRealFunctionAddress(const char* moduleName, const char* functionName);
-    bool InstallHook(void** originalFunction, void* hookFunction, const char* moduleName, const char* functionName);
+    bool InstallHook(std::uintptr_t& originalAddress, std::uintptr_t hookAddress, const char* moduleName, const char* functionName);
     void TrackInterface(void* pInterface, const std::string& interfaceType);
     void UntrackInterface(void* pInterface);
 

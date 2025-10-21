@@ -11,12 +11,16 @@
 #include <algorithm>
 #include <cassert>
 
+#include "../error_handler.h"
+#include "../performance_monitor.h"
+#include "../memory_tracker.h"
+
 namespace UndownUnlock::Optimization {
 
-// Forward declarations
-class ErrorHandler;
-class PerformanceMonitor;
-class MemoryTracker;
+// Forward declarations / facade aliases
+using ErrorHandler = ::ErrorHandler;
+using PerformanceMonitor = ::PerformanceMonitor;
+using MemoryTracker = ::MemoryTracker;
 
 /**
  * Memory pool configuration
@@ -142,7 +146,7 @@ private:
     mutable std::mutex pool_mutex_;
     mutable std::mutex stats_mutex_;
     
-    MemoryPoolStats stats_;
+    mutable MemoryPoolStats stats_;
     std::chrono::system_clock::time_point last_cleanup_;
     std::atomic<bool> cleanup_running_;
     

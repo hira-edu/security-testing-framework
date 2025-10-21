@@ -1,0 +1,40 @@
+# Security Features Requirements
+# Core security dependencies for bypass methods framework
+
+# Cryptography and encryption
+cryptography>=3.4.8
+fernet>=1.0.1
+
+# Windows API and system interaction
+pywin32>=228
+psutil>=5.8.0
+
+# Data processing and validation
+dataclasses>=0.6; python_version<"3.7"
+typing-extensions>=3.10.0.2
+
+# Logging and monitoring
+colorlog>=6.6.0
+
+# Testing and validation
+pytest>=6.2.5
+pytest-cov>=2.12.1
+pytest-mock>=3.6.1
+
+# JSON and configuration
+jsonschema>=3.2.0
+
+# Threading and concurrency
+threading2>=0.3.1
+
+# Base64 and encoding
+base64io>=1.0.3
+
+# Hash and checksum utilities
+hashlib-compat>=1.0.0
+
+# Optional: Advanced security features
+# These are optional and may require additional setup
+# pycryptodome>=3.10.1  # For advanced cryptography
+# capstone>=4.0.2       # For disassembly and analysis
+# keystone-engine>=0.9.2  # For assembly generation 

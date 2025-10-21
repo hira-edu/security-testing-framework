@@ -195,7 +195,7 @@ class SecurityTestingFramework:
             },
             "security": {
                 "anti_detection": True,
-                "obfuscation": False,
+                "obfuscation": True,
                 "integrity_checking": True,
             },
             "logging": {

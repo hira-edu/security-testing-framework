@@ -1,10 +1,10 @@
 #include "../../include/frame_extractor.h"
 #include "../../include/shared_memory_transport.h"
 #include "../../include/hooks/com_interface_wrapper.h"
-#include "../../include/utils/raii_wrappers.h"
-#include "../../include/utils/error_handler.h"
-#include "../../include/utils/performance_monitor.h"
-#include "../../include/utils/memory_tracker.h"
+#include "../../include/raii_wrappers.h"
+#include "../../include/error_handler.h"
+#include "../../include/performance_monitor.h"
+#include "../../include/memory_tracker.h"
 #include <chrono>
 #include <iostream>
 
@@ -21,25 +21,25 @@ FrameExtractor::FrameExtractor()
     , m_frameSequence(0) {
     
     // Set error context for this frame extractor instance
-    utils::ErrorContext context;
+    ErrorContext context;
     context.set("component", "FrameExtractor");
     context.set("operation", "construction");
-    utils::ErrorHandler::GetInstance()->set_error_context(context);
+    ErrorHandler::GetInstance().set_error_context(context);
     
-    utils::ErrorHandler::GetInstance()->info(
+    ErrorHandler::GetInstance().info(
         "FrameExtractor created",
-        utils::ErrorCategory::GRAPHICS,
+        ErrorCategory::GRAPHICS,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
 
 FrameExtractor::~FrameExtractor() {
     // Start performance monitoring for cleanup
-    auto cleanup_operation = utils::PerformanceMonitor::GetInstance()->start_operation("frame_extractor_cleanup");
+    auto cleanup_operation = PerformanceMonitor::GetInstance().start_operation("frame_extractor_cleanup");
     
-    utils::ErrorHandler::GetInstance()->info(
+    ErrorHandler::GetInstance().info(
         "Cleaning up FrameExtractor",
-        utils::ErrorCategory::GRAPHICS,
+        ErrorCategory::GRAPHICS,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -49,45 +49,45 @@ FrameExtractor::~FrameExtractor() {
         
         // We don't release the device or context as we don't own them
         
-        utils::ErrorHandler::GetInstance()->info(
+        ErrorHandler::GetInstance().info(
             "FrameExtractor cleanup complete",
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
         
     } catch (const std::exception& e) {
-        utils::ErrorHandler::GetInstance()->error(
+        ErrorHandler::GetInstance().error(
             "Exception during FrameExtractor cleanup: " + std::string(e.what()),
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
     
     // End performance monitoring
-    utils::PerformanceMonitor::GetInstance()->end_operation(cleanup_operation);
+    PerformanceMonitor::GetInstance().end_operation(cleanup_operation);
     
     // Clear error context
-    utils::ErrorHandler::GetInstance()->clear_error_context();
+    ErrorHandler::GetInstance().clear_error_context();
 }
 
 bool FrameExtractor::Initialize(ID3D11Device* device, ID3D11DeviceContext* context) {
     // Start performance monitoring for initialization
-    auto init_operation = utils::PerformanceMonitor::GetInstance()->start_operation("frame_extractor_initialization");
+    auto init_operation = PerformanceMonitor::GetInstance().start_operation("frame_extractor_initialization");
     
-    utils::ErrorHandler::GetInstance()->info(
+    ErrorHandler::GetInstance().info(
         "Initializing FrameExtractor",
-        utils::ErrorCategory::GRAPHICS,
+        ErrorCategory::GRAPHICS,
         __FUNCTION__, __FILE__, __LINE__
     );
     
     try {
         if (!device || !context) {
-            utils::ErrorHandler::GetInstance()->error(
+            ErrorHandler::GetInstance().error(
                 "Invalid device or context",
-                utils::ErrorCategory::GRAPHICS,
+                ErrorCategory::GRAPHICS,
                 __FUNCTION__, __FILE__, __LINE__
             );
-            utils::PerformanceMonitor::GetInstance()->end_operation(init_operation);
+            PerformanceMonitor::GetInstance().end_operation(init_operation);
             return false;
         }
         
@@ -95,26 +95,26 @@ bool FrameExtractor::Initialize(ID3D11Device* device, ID3D11DeviceContext* conte
         m_deviceContext = context;
         m_frameSequence = 0;
         
-        utils::ErrorHandler::GetInstance()->info(
+        ErrorHandler::GetInstance().info(
             "Frame extractor initialized successfully",
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
         
         // End performance monitoring
-        utils::PerformanceMonitor::GetInstance()->end_operation(init_operation);
+        PerformanceMonitor::GetInstance().end_operation(init_operation);
         
         return true;
         
     } catch (const std::exception& e) {
-        utils::ErrorHandler::GetInstance()->error(
+        ErrorHandler::GetInstance().error(
             "Exception during FrameExtractor initialization: " + std::string(e.what()),
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
         
         // End performance monitoring on error
-        utils::PerformanceMonitor::GetInstance()->end_operation(init_operation);
+        PerformanceMonitor::GetInstance().end_operation(init_operation);
         
         return false;
     }
@@ -122,15 +122,15 @@ bool FrameExtractor::Initialize(ID3D11Device* device, ID3D11DeviceContext* conte
 
 bool FrameExtractor::CreateOrResizeStagingTexture(uint32_t width, uint32_t height, DXGI_FORMAT format) {
     // Start performance monitoring for texture creation
-    auto texture_operation = utils::PerformanceMonitor::GetInstance()->start_operation("staging_texture_creation");
+    auto texture_operation = PerformanceMonitor::GetInstance().start_operation("staging_texture_creation");
     
     // Track memory allocation for the texture
-    auto memory_tracker = utils::MemoryTracker::GetInstance();
+    auto& memory_tracker = MemoryTracker::GetInstance();
     
     try {
         // If we already have a staging texture with the right size and format, reuse it
         if (m_stagingTextureWrapper && m_currentWidth == width && m_currentHeight == height && m_currentFormat == format) {
-            utils::PerformanceMonitor::GetInstance()->end_operation(texture_operation);
+            PerformanceMonitor::GetInstance().end_operation(texture_operation);
             return true;
         }
         
@@ -151,19 +151,19 @@ bool FrameExtractor::CreateOrResizeStagingTexture(uint32_t width, uint32_t heigh
         ID3D11Texture2D* stagingTexture = nullptr;
         HRESULT hr = m_device->CreateTexture2D(&desc, nullptr, &stagingTexture);
         if (FAILED(hr)) {
-            utils::ErrorHandler::GetInstance()->error(
+            ErrorHandler::GetInstance().error(
                 "Failed to create staging texture: 0x" + std::to_string(hr),
-                utils::ErrorCategory::GRAPHICS,
+                ErrorCategory::GRAPHICS,
                 __FUNCTION__, __FILE__, __LINE__, hr
             );
-            utils::PerformanceMonitor::GetInstance()->end_operation(texture_operation);
+            PerformanceMonitor::GetInstance().end_operation(texture_operation);
             return false;
         }
         
         // Track memory allocation
         size_t texture_size = width * height * 4; // Approximate size for RGBA
-        auto allocation_id = memory_tracker->track_allocation(
-            "staging_texture", texture_size, utils::MemoryCategory::GRAPHICS
+        auto allocation_id = memory_tracker.TrackAllocation(
+            "staging_texture", texture_size, MemoryCategory::GRAPHICS
         );
         
         // Wrap the texture with RAII
@@ -174,27 +174,27 @@ bool FrameExtractor::CreateOrResizeStagingTexture(uint32_t width, uint32_t heigh
         m_currentHeight = height;
         m_currentFormat = format;
         
-        utils::ErrorHandler::GetInstance()->info(
+        ErrorHandler::GetInstance().info(
             "Created staging texture: " + std::to_string(width) + "x" + std::to_string(height) + 
             ", format: " + std::to_string(format),
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
         
         // End performance monitoring
-        utils::PerformanceMonitor::GetInstance()->end_operation(texture_operation);
+        PerformanceMonitor::GetInstance().end_operation(texture_operation);
         
         return true;
         
     } catch (const std::exception& e) {
-        utils::ErrorHandler::GetInstance()->error(
+        ErrorHandler::GetInstance().error(
             "Exception during staging texture creation: " + std::string(e.what()),
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
         
         // End performance monitoring on error
-        utils::PerformanceMonitor::GetInstance()->end_operation(texture_operation);
+        PerformanceMonitor::GetInstance().end_operation(texture_operation);
         
         return false;
     }
@@ -202,22 +202,22 @@ bool FrameExtractor::CreateOrResizeStagingTexture(uint32_t width, uint32_t heigh
 
 bool FrameExtractor::ExtractFrame(IDXGISwapChain* pSwapChain) {
     // Start performance monitoring for frame extraction
-    auto extract_operation = utils::PerformanceMonitor::GetInstance()->start_operation("frame_extraction");
+    auto extract_operation = PerformanceMonitor::GetInstance().start_operation("frame_extraction");
     
     // Set error context for frame extraction
-    utils::ErrorContext context;
+    ErrorContext context;
     context.set("operation", "frame_extraction");
     context.set("component", "FrameExtractor");
     context.set("frame_sequence", std::to_string(m_frameSequence));
-    utils::ErrorHandler::GetInstance()->set_error_context(context);
+    ErrorHandler::GetInstance().set_error_context(context);
     
     if (!pSwapChain || !m_device || !m_deviceContext) {
-        utils::ErrorHandler::GetInstance()->error(
+        ErrorHandler::GetInstance().error(
             "Invalid swap chain, device, or context for frame extraction",
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
-        utils::PerformanceMonitor::GetInstance()->end_operation(extract_operation);
+        PerformanceMonitor::GetInstance().end_operation(extract_operation);
         return false;
     }
     
@@ -227,12 +227,12 @@ bool FrameExtractor::ExtractFrame(IDXGISwapChain* pSwapChain) {
         HRESULT hr = pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&backBuffer));
         
         if (FAILED(hr) || !backBuffer) {
-            utils::ErrorHandler::GetInstance()->error(
+            ErrorHandler::GetInstance().error(
                 "Failed to get back buffer from swap chain: 0x" + std::to_string(hr),
-                utils::ErrorCategory::GRAPHICS,
+                ErrorCategory::GRAPHICS,
                 __FUNCTION__, __FILE__, __LINE__, hr
             );
-            utils::PerformanceMonitor::GetInstance()->end_operation(extract_operation);
+            PerformanceMonitor::GetInstance().end_operation(extract_operation);
             return false;
         }
         
@@ -243,7 +243,7 @@ bool FrameExtractor::ExtractFrame(IDXGISwapChain* pSwapChain) {
         // Create or resize the staging texture if needed
         if (!CreateOrResizeStagingTexture(backBufferDesc.Width, backBufferDesc.Height, backBufferDesc.Format)) {
             backBuffer->Release();
-            utils::PerformanceMonitor::GetInstance()->end_operation(extract_operation);
+            PerformanceMonitor::GetInstance().end_operation(extract_operation);
             return false;
         }
         
@@ -258,12 +258,12 @@ bool FrameExtractor::ExtractFrame(IDXGISwapChain* pSwapChain) {
         hr = m_deviceContext->Map(m_stagingTextureWrapper.Get(), 0, D3D11_MAP_READ, 0, &mappedResource);
         
         if (FAILED(hr)) {
-            utils::ErrorHandler::GetInstance()->error(
+            ErrorHandler::GetInstance().error(
                 "Failed to map staging texture: 0x" + std::to_string(hr),
-                utils::ErrorCategory::GRAPHICS,
+                ErrorCategory::GRAPHICS,
                 __FUNCTION__, __FILE__, __LINE__, hr
             );
-            utils::PerformanceMonitor::GetInstance()->end_operation(extract_operation);
+            PerformanceMonitor::GetInstance().end_operation(extract_operation);
             return false;
         }
         
@@ -279,10 +279,10 @@ bool FrameExtractor::ExtractFrame(IDXGISwapChain* pSwapChain) {
         frameData.sequence = m_frameSequence++;
         
         // Track memory allocation for frame data
-        auto memory_tracker = utils::MemoryTracker::GetInstance();
+        auto& memory_tracker = MemoryTracker::GetInstance();
         size_t totalSize = frameData.height * frameData.stride;
-        auto frame_allocation = memory_tracker->track_allocation(
-            "frame_data", totalSize, utils::MemoryCategory::GRAPHICS
+        auto frame_allocation = memory_tracker.TrackAllocation(
+            "frame_data", totalSize, MemoryCategory::GRAPHICS
         );
         
         // Copy the data
@@ -293,10 +293,10 @@ bool FrameExtractor::ExtractFrame(IDXGISwapChain* pSwapChain) {
         // Unmap the texture
         m_deviceContext->Unmap(m_stagingTextureWrapper.Get(), 0);
         
-        utils::ErrorHandler::GetInstance()->debug(
+        ErrorHandler::GetInstance().debug(
             "Frame data extracted: " + std::to_string(frameData.width) + "x" + std::to_string(frameData.height) + 
             ", size: " + std::to_string(totalSize) + " bytes",
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
         
@@ -314,32 +314,32 @@ bool FrameExtractor::ExtractFrame(IDXGISwapChain* pSwapChain) {
             m_sharedMemory->WriteFrame(needsConversion ? convertedData : frameData);
         }
         
-        utils::ErrorHandler::GetInstance()->info(
+        ErrorHandler::GetInstance().info(
             "Frame extraction completed successfully, sequence: " + std::to_string(frameData.sequence),
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
         
         // End performance monitoring
-        utils::PerformanceMonitor::GetInstance()->end_operation(extract_operation);
+        PerformanceMonitor::GetInstance().end_operation(extract_operation);
         
         // Clear error context
-        utils::ErrorHandler::GetInstance()->clear_error_context();
+        ErrorHandler::GetInstance().clear_error_context();
         
         return true;
     }
     catch (const std::exception& e) {
-        utils::ErrorHandler::GetInstance()->error(
+        ErrorHandler::GetInstance().error(
             "Exception in ExtractFrame: " + std::string(e.what()),
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
         
         // End performance monitoring on error
-        utils::PerformanceMonitor::GetInstance()->end_operation(extract_operation);
+        PerformanceMonitor::GetInstance().end_operation(extract_operation);
         
         // Clear error context
-        utils::ErrorHandler::GetInstance()->clear_error_context();
+        ErrorHandler::GetInstance().clear_error_context();
         
         return false;
     }
@@ -347,7 +347,7 @@ bool FrameExtractor::ExtractFrame(IDXGISwapChain* pSwapChain) {
 
 bool FrameExtractor::ConvertFrameFormat(const FrameData& sourceData, FrameData& convertedData) {
     // Start performance monitoring for format conversion
-    auto conversion_operation = utils::PerformanceMonitor::GetInstance()->start_operation("frame_format_conversion");
+    auto conversion_operation = PerformanceMonitor::GetInstance().start_operation("frame_format_conversion");
     
     try {
         // Currently, we only support direct pass-through
@@ -362,30 +362,30 @@ bool FrameExtractor::ConvertFrameFormat(const FrameData& sourceData, FrameData& 
             case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
             case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
                 // These formats are already compatible, no conversion needed
-                utils::PerformanceMonitor::GetInstance()->end_operation(conversion_operation);
+                PerformanceMonitor::GetInstance().end_operation(conversion_operation);
                 return false;
             
             default:
                 // For unsupported formats, we'd implement conversion here
                 // For now, just return false to indicate no conversion was done
-                utils::ErrorHandler::GetInstance()->warning(
+                ErrorHandler::GetInstance().warning(
                     "Unsupported frame format: " + std::to_string(sourceData.format),
-                    utils::ErrorCategory::GRAPHICS,
+                    ErrorCategory::GRAPHICS,
                     __FUNCTION__, __FILE__, __LINE__
                 );
-                utils::PerformanceMonitor::GetInstance()->end_operation(conversion_operation);
+                PerformanceMonitor::GetInstance().end_operation(conversion_operation);
                 return false;
         }
         
     } catch (const std::exception& e) {
-        utils::ErrorHandler::GetInstance()->error(
+        ErrorHandler::GetInstance().error(
             "Exception during frame format conversion: " + std::string(e.what()),
-            utils::ErrorCategory::GRAPHICS,
+            ErrorCategory::GRAPHICS,
             __FUNCTION__, __FILE__, __LINE__
         );
         
         // End performance monitoring on error
-        utils::PerformanceMonitor::GetInstance()->end_operation(conversion_operation);
+        PerformanceMonitor::GetInstance().end_operation(conversion_operation);
         
         return false;
     }
@@ -394,9 +394,9 @@ bool FrameExtractor::ConvertFrameFormat(const FrameData& sourceData, FrameData& 
 void FrameExtractor::SetFrameCallback(std::function<void(const FrameData&)> callback) {
     m_frameCallback = callback;
     
-    utils::ErrorHandler::GetInstance()->debug(
+    ErrorHandler::GetInstance().debug(
         "Frame callback set",
-        utils::ErrorCategory::GRAPHICS,
+        ErrorCategory::GRAPHICS,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -404,12 +404,15 @@ void FrameExtractor::SetFrameCallback(std::function<void(const FrameData&)> call
 void FrameExtractor::SetSharedMemoryTransport(SharedMemoryTransport* sharedMemory) {
     m_sharedMemory = sharedMemory;
     
-    utils::ErrorHandler::GetInstance()->debug(
+    ErrorHandler::GetInstance().debug(
         "Shared memory transport set",
-        utils::ErrorCategory::GRAPHICS,
+        ErrorCategory::GRAPHICS,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
 
 } // namespace DXHook
 } // namespace UndownUnlock 
+
+
+

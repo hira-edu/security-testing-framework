@@ -34,6 +34,9 @@ set(DLL_HOOKS_SOURCES
     src/signatures/lockdown_signatures.cpp
     src/com_hooks/factory_hooks.cpp
     # Utility components
+    src/error_handler.cpp
+    src/memory_tracker.cpp
+    src/performance_monitor.cpp
     src/utils/raii_wrappers.cpp
     src/utils/error_handler.cpp
     src/utils/memory_tracker.cpp
@@ -85,14 +88,12 @@ install(TARGETS UndownUnlockDXHook UndownUnlockTestClient
     ARCHIVE DESTINATION lib
 )
 
-# Copy the Python injector script to the output directory (if present)
-if(EXISTS ${CMAKE_SOURCE_DIR}/src/test_injector.py)
-    configure_file(
-        ${CMAKE_SOURCE_DIR}/src/test_injector.py
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test_injector.py
-        COPYONLY
-    )
-endif()
+# Copy the Python injector script to the output directory
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/test_injector.py
+    ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test_injector.py
+    COPYONLY
+)
 
 # Add tests if testing is enabled
 if(BUILD_TESTING)

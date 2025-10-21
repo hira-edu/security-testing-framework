@@ -1,13 +1,18 @@
 #include "../../include/optimization/performance_optimizer.h"
 #include "../../include/optimization/memory_pool.h"
 #include "../../include/optimization/thread_pool.h"
-#include "../../include/utils/error_handler.h"
-#include "../../include/utils/performance_monitor.h"
-#include "../../include/utils/memory_tracker.h"
+#include "../../include/error_handler.h"
+#include "../../include/performance_monitor.h"
+#include "../../include/memory_tracker.h"
 #include <sstream>
 #include <iomanip>
 #include <algorithm>
+#include <numeric>
 #include <intrin.h>
+
+#ifndef __cpuid_count
+#define __cpuid_count(info, leaf, subleaf) __cpuidex(info, leaf, subleaf)
+#endif
 #include <psapi.h>
 #include <pdh.h>
 
@@ -22,21 +27,21 @@ PerformanceOptimizer::PerformanceOptimizer(const PerformanceOptimizerConfig& con
       optimization_count_(0), current_quality_level_(1.0) {
     
     // Initialize utility components
-    error_handler_ = &utils::ErrorHandler::GetInstance();
-    performance_monitor_ = &utils::PerformanceMonitor::GetInstance();
-    memory_tracker_ = &utils::MemoryTracker::GetInstance();
+    error_handler_ = &ErrorHandler::GetInstance();
+    performance_monitor_ = &PerformanceMonitor::GetInstance();
+    memory_tracker_ = &MemoryTracker::GetInstance();
     memory_pool_ = &MemoryPool::get_instance();
     thread_pool_ = &ThreadPool::get_instance();
     
     // Set error context
-    utils::ErrorContext context;
+    ErrorContext context;
     context.set("component", "PerformanceOptimizer");
     context.set("operation", "initialization");
     error_handler_->set_error_context(context);
     
     error_handler_->info(
         "Initializing Performance Optimizer",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -45,10 +50,10 @@ PerformanceOptimizer::PerformanceOptimizer(const PerformanceOptimizerConfig& con
     performance_monitor_->end_operation(init_operation);
     
     // Track memory allocation for the optimizer
-    auto optimizer_allocation = memory_tracker_->track_allocation(
-        "performance_optimizer", sizeof(PerformanceOptimizer), utils::MemoryCategory::SYSTEM
+    auto optimizer_allocation = memory_tracker_->TrackAllocation(
+        "performance_optimizer", sizeof(PerformanceOptimizer), MemoryCategory::SYSTEM
     );
-    memory_tracker_->release_allocation(optimizer_allocation);
+    memory_tracker_->ReleaseAllocation(optimizer_allocation);
     
     // Detect hardware capabilities
     detect_hardware_capabilities();
@@ -60,7 +65,7 @@ PerformanceOptimizer::PerformanceOptimizer(const PerformanceOptimizerConfig& con
 PerformanceOptimizer::~PerformanceOptimizer() {
     error_handler_->info(
         "Shutting down Performance Optimizer",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -96,7 +101,7 @@ void PerformanceOptimizer::start_optimization() {
     if (optimization_active_.load()) {
         error_handler_->warning(
             "Performance optimization is already active",
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
         return;
@@ -107,7 +112,7 @@ void PerformanceOptimizer::start_optimization() {
     
     error_handler_->info(
         "Starting performance optimization",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -122,7 +127,7 @@ void PerformanceOptimizer::stop_optimization() {
     
     error_handler_->info(
         "Stopping performance optimization",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -139,7 +144,7 @@ void PerformanceOptimizer::optimize_now() {
     
     error_handler_->info(
         "Performing immediate performance optimization",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -166,7 +171,7 @@ void PerformanceOptimizer::apply_optimization(OptimizationStrategy strategy) {
     
     error_handler_->info(
         "Applying optimization strategy: " + std::to_string(static_cast<int>(strategy)),
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -193,14 +198,14 @@ void PerformanceOptimizer::apply_optimization(OptimizationStrategy strategy) {
             // Implement caching optimization
             error_handler_->debug(
                 "Caching optimization not implemented in this build",
-                utils::ErrorCategory::SYSTEM,
+                ErrorCategory::SYSTEM,
                 __FUNCTION__, __FILE__, __LINE__
             );
             break;
         default:
             error_handler_->warning(
                 "Unknown optimization strategy: " + std::to_string(static_cast<int>(strategy)),
-                utils::ErrorCategory::SYSTEM,
+                ErrorCategory::SYSTEM,
                 __FUNCTION__, __FILE__, __LINE__
             );
             break;
@@ -212,7 +217,7 @@ void PerformanceOptimizer::apply_optimization(OptimizationStrategy strategy) {
 void PerformanceOptimizer::revert_optimization(OptimizationStrategy strategy) {
     error_handler_->info(
         "Reverting optimization strategy: " + std::to_string(static_cast<int>(strategy)),
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -278,7 +283,7 @@ void PerformanceOptimizer::enable_hardware_acceleration(HardwareAccelerationType
     // Implementation would enable/disable specific hardware acceleration
     error_handler_->debug(
         "Hardware acceleration toggle not implemented in this build",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -317,7 +322,7 @@ void PerformanceOptimizer::set_quality_level(double level) {
     
     error_handler_->info(
         "Quality level set to: " + std::to_string(level),
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -351,7 +356,7 @@ void PerformanceOptimizer::print_optimization_report() const {
            << std::fixed << std::setprecision(1) << rec.expected_improvement_percent << "%)" << std::endl;
     }
     
-    error_handler_->info(ss.str(), utils::ErrorCategory::SYSTEM, __FUNCTION__, __FILE__, __LINE__);
+    error_handler_->info(ss.str(), ErrorCategory::SYSTEM, __FUNCTION__, __FILE__, __LINE__);
 }
 
 void PerformanceOptimizer::reset_optimization_history() {
@@ -378,7 +383,7 @@ size_t PerformanceOptimizer::get_optimization_count() const {
 void PerformanceOptimizer::optimization_worker() {
     error_handler_->info(
         "Performance optimization worker thread started",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
     
@@ -404,7 +409,7 @@ void PerformanceOptimizer::optimization_worker() {
         } catch (const std::exception& e) {
             error_handler_->error(
                 "Exception in optimization worker: " + std::string(e.what()),
-                utils::ErrorCategory::SYSTEM,
+                ErrorCategory::SYSTEM,
                 __FUNCTION__, __FILE__, __LINE__
             );
         }
@@ -412,7 +417,7 @@ void PerformanceOptimizer::optimization_worker() {
     
     error_handler_->info(
         "Performance optimization worker thread stopped",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -447,7 +452,7 @@ void PerformanceOptimizer::detect_hardware_capabilities() {
     error_handler_->info(
         "Hardware capabilities detected - CPU cores: " + std::to_string(hardware_capabilities_.cpu_cores) +
         ", Memory: " + std::to_string(hardware_capabilities_.total_memory_mb) + "MB",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -538,7 +543,7 @@ void PerformanceOptimizer::analyze_performance_bottlenecks() {
         error_handler_->warning(
             "Performance bottlenecks detected: " + std::accumulate(bottlenecks.begin(), bottlenecks.end(), std::string(),
                 [](const std::string& a, const std::string& b) { return a + (a.empty() ? "" : ", ") + b; }),
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -627,7 +632,7 @@ void PerformanceOptimizer::adjust_quality_settings() {
         
         error_handler_->info(
             "Quality level adjusted from " + std::to_string(current_quality) + " to " + std::to_string(target_quality),
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -642,7 +647,7 @@ void PerformanceOptimizer::optimize_memory_usage() {
     
     error_handler_->info(
         "Memory optimization applied",
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -653,9 +658,9 @@ void PerformanceOptimizer::optimize_thread_usage() {
     size_t target_threads = current_threads;
     
     if (current_metrics_.queued_tasks > 20) {
-        target_threads = std::min(config_.enabled_strategies.size(), current_threads + 2);
+        target_threads = std::min<size_t>(config_.enabled_strategies.size(), current_threads + 2);
     } else if (current_metrics_.queued_tasks < 5 && current_threads > 2) {
-        target_threads = std::max(2ul, current_threads - 1);
+        target_threads = std::max<size_t>(static_cast<size_t>(2), current_threads - 1);
     }
     
     if (target_threads != current_threads) {
@@ -663,7 +668,7 @@ void PerformanceOptimizer::optimize_thread_usage() {
         
         error_handler_->info(
             "Thread pool resized from " + std::to_string(current_threads) + " to " + std::to_string(target_threads),
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -674,7 +679,7 @@ void PerformanceOptimizer::optimize_hardware_usage() {
     if (hardware_capabilities_.has_avx) {
         error_handler_->info(
             "AVX hardware acceleration enabled",
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -682,7 +687,7 @@ void PerformanceOptimizer::optimize_hardware_usage() {
     if (hardware_capabilities_.has_d3d11) {
         error_handler_->info(
             "D3D11 hardware acceleration enabled",
-            utils::ErrorCategory::SYSTEM,
+            ErrorCategory::SYSTEM,
             __FUNCTION__, __FILE__, __LINE__
         );
     }
@@ -736,7 +741,7 @@ bool PerformanceOptimizer::should_apply_optimization(const OptimizationRecommend
 void PerformanceOptimizer::log_optimization_event(const std::string& event, const std::string& details) {
     error_handler_->debug(
         "Optimization event: " + event + (details.empty() ? "" : " - " + details),
-        utils::ErrorCategory::SYSTEM,
+        ErrorCategory::SYSTEM,
         __FUNCTION__, __FILE__, __LINE__
     );
 }
@@ -891,3 +896,6 @@ namespace QualityScalingUtils {
 }
 
 } // namespace UndownUnlock::Optimization 
+
+
+
