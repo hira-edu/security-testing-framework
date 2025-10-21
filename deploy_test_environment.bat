@@ -202,7 +202,7 @@ echo %GREEN%[+] Defender exclusions configured%RESET%
 echo %YELLOW%[*] Creating maximum capability configuration...%RESET%
 (
 echo {
-echo     "version": "1.0.0",
+echo     "version": "1.1.0",
 echo     "build_time": "%DATE:~10,4%%DATE:~4,2%%DATE:~7,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%",
 echo     "security_level": "HIGH",
 echo     "enable_logging": true,

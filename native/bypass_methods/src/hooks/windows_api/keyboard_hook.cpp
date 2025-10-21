@@ -1,6 +1,6 @@
 #include "../../../include/hooks/keyboard_hook.h"
 #include "../../../include/hooks/windows_api_hooks.h"
-#include "../../../include/raii_wrappers.h"
+#include "../../../include/utils/raii_wrappers.h"
 #include "../../../include/error_handler.h"
 #include "../../../include/memory_tracker.h"
 #include "../../../include/performance_monitor.h"

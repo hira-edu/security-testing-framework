@@ -24,7 +24,7 @@ class SingleFileBuilder:
         self.build_dir = self.base_dir / "build"
         self.temp_dir = Path(tempfile.mkdtemp())
         self.release_mode = release_mode
-        self.version = "1.0.0"
+        self.version = "1.1.0"
         self.build_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.config_path = self.base_dir / "config.json"
 
@@ -248,7 +248,7 @@ logger = logging.getLogger(__name__)
 class SecurityTestingFramework:
     """Main framework controller"""
 
-    VERSION = "1.0.0"
+    VERSION = "1.1.0"
 
     def __init__(self):
         self.base_dir = Path(__file__).parent
@@ -433,7 +433,7 @@ class MainWindow:
     def __init__(self, framework):
         self.framework = framework
         self.root = tk.Tk()
-        version = getattr(self.framework, "VERSION", "1.0.0")
+        version = getattr(self.framework, "VERSION", "1.1.0")
         self.root.title(f"Security Testing Framework v{version}")
         self.root.geometry("900x600")
         self.setup_ui()
@@ -508,7 +508,7 @@ class MainWindow:
         info_frame = ttk.LabelFrame(self.dashboard_frame, text="System Information")
         info_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        version = getattr(self.framework, "VERSION", "1.0.0")
+        version = getattr(self.framework, "VERSION", "1.1.0")
         build_time = getattr(self.framework, "build_time", None) or self.framework.config.get("build_time")
         info_lines = [
             f"Version: {version}",
@@ -1122,7 +1122,7 @@ def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description="Build single-file security testing framework")
     parser.add_argument("--release", action="store_true", help="Build release executable")
-    parser.add_argument("--version", type=str, default="1.0.0", help="Version number")
+    parser.add_argument("--version", type=str, default="1.1.0", help="Version number")
 
     args = parser.parse_args()
 

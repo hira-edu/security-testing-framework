@@ -12,6 +12,12 @@
 namespace UndownUnlock {
 namespace DXHook {
 
+using Hooks::D3D11DeviceContextWrapper;
+using Hooks::D3D11DeviceWrapper;
+using Hooks::DXGISwapChainWrapper;
+using Hooks::GetInterfaceChecked;
+using Hooks::D3D11Texture2DWrapper;
+
 // Initialize the singleton instance
 DXHookCore* DXHookCore::s_instance = nullptr;
 
@@ -135,9 +141,9 @@ bool DXHookCore::Initialize() {
                 if (deviceWrapper) {
                     // Get the immediate context using RAII wrapper
                     ID3D11DeviceContext* context = nullptr;
-                    HRESULT hr = deviceWrapper->GetImmediateContext(&context);
-                    
-                    if (SUCCEEDED(hr) && context) {
+                    deviceWrapper->GetImmediateContext(&context);
+
+                    if (context) {
                         // Wrap the context for automatic cleanup
                         D3D11DeviceContextWrapper contextWrapper(context, true);
                         
@@ -159,8 +165,8 @@ bool DXHookCore::Initialize() {
                         utils::ErrorHandler::GetInstance()->error(
                             "Failed to get immediate context from device",
                             utils::ErrorCategory::GRAPHICS,
-                            __FUNCTION__, __FILE__, __LINE__, hr
-                        );
+                            __FUNCTION__, __FILE__, __LINE__);
+
                     }
                 }
             }
@@ -379,3 +385,5 @@ void DXHookCore::UnregisterFrameCallback(size_t handle) {
 
 } // namespace DXHook
 } // namespace UndownUnlock 
+
+

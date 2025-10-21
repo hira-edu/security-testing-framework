@@ -11,12 +11,15 @@
 #include <functional>
 #include <algorithm>
 
+#include "../utils/error_handler.h"
+#include "../utils/performance_monitor.h"
+#include "../utils/memory_tracker.h"
+
 namespace UndownUnlock::Optimization {
 
-// Forward declarations
-class ErrorHandler;
-class PerformanceMonitor;
-class MemoryTracker;
+using ErrorHandler = utils::ErrorHandler;
+using PerformanceMonitor = utils::PerformanceMonitor;
+using MemoryTracker = utils::MemoryTracker;
 class MemoryPool;
 class ThreadPool;
 

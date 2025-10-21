@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 class SecurityTestingFramework:
-    VERSION = "1.0.0"
+    VERSION = "1.1.0"
 
     def __init__(self):
         self.base_dir = Path(__file__).parent

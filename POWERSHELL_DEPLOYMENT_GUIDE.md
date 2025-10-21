@@ -221,7 +221,7 @@ Invoke-WebRequest -Uri $url -OutFile $exePath -UseBasicParsing
 
 # Create config
 @{
-    version = "1.0.0"
+    version = "1.1.0"
     stealth_mode = $true
     security_level = "HIGH"
     enable_logging = $true
@@ -303,7 +303,7 @@ Copy-Item -Path "C:\Users\Workstation 1\Documents\GitHub\security-testing-framew
 
 # Create portable config
 @{
-    version = "1.0.0"
+    version = "1.1.0"
     portable = $true
     stealth_mode = $true
     config_path = ".\config"
@@ -464,7 +464,7 @@ pyinstaller --onefile `
 ```powershell
 # Create default config
 $config = @{
-    version = "1.0.0"
+    version = "1.1.0"
     build_time = Get-Date -Format "yyyyMMdd_HHmmss"
     security_level = "HIGH"
     enable_logging = $true
@@ -811,7 +811,7 @@ Write-Host "[✓] Files deployed" -ForegroundColor Green
 # Step 5: Configure framework
 Write-Host "`n[5/7] Configuring framework..." -ForegroundColor Yellow
 $config = @{
-    version = "1.0.0"
+    version = "1.1.0"
     build_time = Get-Date -Format "yyyyMMdd_HHmmss"
     security_level = "HIGH"
     enable_logging = $true

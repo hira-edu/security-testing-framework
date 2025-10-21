@@ -11,6 +11,8 @@
 namespace UndownUnlock {
 namespace DXHook {
 
+using Hooks::D3D11Texture2DWrapper;
+
 // Forward declarations
 struct FrameData;
 class SharedMemoryTransport;

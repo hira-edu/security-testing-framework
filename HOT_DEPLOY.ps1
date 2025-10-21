@@ -111,7 +111,7 @@ try {
 # Step 6: Configure framework
 Write-Host "[6/8] Configuring framework..." -ForegroundColor Yellow
 $config = @{
-    version = "1.0.0"
+    version = "1.1.0"
     build_time = Get-Date -Format "yyyyMMdd_HHmmss"
     deployment_time = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     security_level = "HIGH"

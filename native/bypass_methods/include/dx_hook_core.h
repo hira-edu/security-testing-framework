@@ -56,6 +56,8 @@ public:
      */
     void UnregisterFrameCallback(size_t handle);
 
+    bool IsInitialized() const { return m_initialized.load(); }
+
     // Make FactoryHooks a friend class so it can access private members
     friend class FactoryHooks;
 

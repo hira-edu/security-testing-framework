@@ -10,7 +10,7 @@ class MainWindow:
     def __init__(self, framework):
         self.framework = framework
         self.root = tk.Tk()
-        version = getattr(self.framework, "VERSION", "1.0.0")
+        version = getattr(self.framework, "VERSION", "1.1.0")
         self.root.title(f"Security Testing Framework v{version}")
         self.root.geometry("900x600")
         self.setup_ui()
@@ -85,7 +85,7 @@ class MainWindow:
         info_frame = ttk.LabelFrame(self.dashboard_frame, text="System Information")
         info_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        version = getattr(self.framework, "VERSION", "1.0.0")
+        version = getattr(self.framework, "VERSION", "1.1.0")
         build_time = getattr(self.framework, "build_time", None) or self.framework.config.get("build_time")
         info_lines = [
             f"Version: {version}",

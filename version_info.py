@@ -18,12 +18,12 @@ VSVersionInfo(
                 [
                     StringStruct(u'CompanyName', u'Security Research Team'),
                     StringStruct(u'FileDescription', u'Security Testing Framework'),
-                    StringStruct(u'FileVersion', u'1.0.0'),
+                    StringStruct(u'FileVersion', u'1.1.0'),
                     StringStruct(u'InternalName', u'SecurityTestingFramework'),
                     StringStruct(u'LegalCopyright', u'(c) 2024 Security Research Team'),
                     StringStruct(u'OriginalFilename', u'SecurityTestingFramework.exe'),
                     StringStruct(u'ProductName', u'Security Testing Framework'),
-                    StringStruct(u'ProductVersion', u'1.0.0')
+                    StringStruct(u'ProductVersion', u'1.1.0')
                 ]
             )
         ]),

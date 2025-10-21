@@ -67,9 +67,56 @@ def load_required_assemblies():
         clr.AddReference("System.Runtime")
         clr.AddReference("System.Runtime.InteropServices")
         clr.AddReference("System.Drawing")
-        
-        # Add reference to Windows Runtime
-        clr.AddReference("Windows")
+
+        # Attempt to load WinRT support assemblies
+        try:
+            clr.AddReference("System.Runtime.WindowsRuntime")
+        except Exception as runtime_exc:
+            logger.debug(f"Optional System.Runtime.WindowsRuntime load failed: {runtime_exc}")
+
+        winrt_loaded = False
+        try:
+            clr.AddReference("Windows")
+            winrt_loaded = True
+        except Exception as winmd_error:
+            logger.warning(f"Failed to load Windows metadata via standard reference: {winmd_error}")
+
+            # Probe common Windows SDK locations for Windows.winmd if the direct load failed
+            sdk_roots = []
+            program_files_x86 = os.environ.get("ProgramFiles(x86)")
+            if program_files_x86:
+                sdk_roots.extend([
+                    Path(program_files_x86) / "Windows Kits" / "10" / "UnionMetadata",
+                    Path(program_files_x86) / "Windows Kits" / "10" / "References",
+                ])
+
+            for root in sdk_roots:
+                if not root.exists():
+                    continue
+
+                candidate_dirs = sorted(
+                    [path for path in root.iterdir() if path.is_dir()],
+                    reverse=True
+                )
+
+                for directory in candidate_dirs:
+                    candidate = directory / "Windows.winmd"
+                    if not candidate.exists():
+                        continue
+
+                    try:
+                        clr.AddReferenceToFileAndPath(str(candidate))
+                        logger.info(f"Loaded Windows metadata from {candidate}")
+                        winrt_loaded = True
+                        break
+                    except Exception as candidate_error:
+                        logger.warning(f"Failed to load WinRT metadata from {candidate}: {candidate_error}")
+
+                if winrt_loaded:
+                    break
+
+            if not winrt_loaded:
+                raise
         
         # Try to add reference to our custom interop DLL
         # This DLL would need to be created separately
@@ -307,6 +354,87 @@ def create_interop_assembly():
                     }
                 }
 
+                public static byte[] CaptureMonitor(IntPtr hMonitor, string outputPath = null)
+                {
+                    try
+                    {
+                        if (hMonitor == IntPtr.Zero)
+                            throw new ArgumentException("Invalid monitor handle");
+
+                        InitializeDirect3D();
+
+                        GraphicsCaptureItem item = CreateCaptureItemForMonitor(hMonitor);
+                        if (item == null)
+                            throw new Exception("Failed to create capture item for monitor");
+
+                        SizeInt32 size = item.Size;
+
+                        Direct3D11CaptureFramePool framePool = Direct3D11CaptureFramePool.Create(
+                            _d3dDevice,
+                            DirectXPixelFormat.B8G8R8A8UIntNormalized,
+                            2,
+                            size);
+
+                        GraphicsCaptureSession session = framePool.CreateCaptureSession(item);
+                        session.StartCapture();
+
+                        bool gotFrame = false;
+                        Direct3D11CaptureFrame frame = null;
+                        byte[] imageBytes = null;
+
+                        using var frameSemaphore = new System.Threading.SemaphoreSlim(0);
+                        framePool.FrameArrived += (s, e) =>
+                        {
+                            frame = framePool.TryGetNextFrame();
+                            if (frame != null)
+                            {
+                                gotFrame = true;
+                                frameSemaphore.Release();
+                            }
+                        };
+
+                        if (!frameSemaphore.Wait(TimeSpan.FromSeconds(5)))
+                        {
+                            throw new TimeoutException("Timed out waiting for capture frame");
+                        }
+
+                        if (gotFrame && frame != null)
+                        {
+                            IDirect3DSurface surface = frame.Surface;
+
+                            using var bitmap = SurfaceToBitmap(surface, size.Width, size.Height);
+
+                            using var memStream = new MemoryStream();
+                            bitmap.Save(memStream, ImageFormat.Png);
+                            imageBytes = memStream.ToArray();
+
+                            if (!string.IsNullOrEmpty(outputPath))
+                            {
+                                try
+                                {
+                                    bitmap.Save(outputPath, ImageFormat.Png);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"Error saving to file: {ex.Message}");
+                                }
+                            }
+
+                            frame.Dispose();
+                        }
+
+                        session.Dispose();
+                        framePool.Dispose();
+
+                        return imageBytes;
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Monitor capture error: {ex.Message}\n{ex.StackTrace}");
+                        return null;
+                    }
+                }
+
                 private static Bitmap SurfaceToBitmap(IDirect3DSurface surface, int width, int height)
                 {
                     // Get the underlying DXGI resource
@@ -359,6 +487,27 @@ def create_interop_assembly():
                     var graphicsCaptureItemGuid = typeof(GraphicsCaptureItem).GUID;
                     IntPtr graphicsCaptureItemPtr = interop.CreateForWindow(
                         hwnd, 
+                        ref graphicsCaptureItemGuid);
+
+                    try
+                    {
+                        var graphicsCaptureItem = Marshal.GetObjectForIUnknown(graphicsCaptureItemPtr) as GraphicsCaptureItem;
+                        return graphicsCaptureItem;
+                    }
+                    finally
+                    {
+                        Marshal.Release(graphicsCaptureItemPtr);
+                    }
+                }
+
+                private static GraphicsCaptureItem CreateCaptureItemForMonitor(IntPtr monitorHandle)
+                {
+                    var interop = WindowsRuntimeMarshal.GetActivationFactory(typeof(GraphicsCaptureItem).FullName)
+                        .QueryInterface<IGraphicsCaptureItemInterop>();
+
+                    var graphicsCaptureItemGuid = typeof(GraphicsCaptureItem).GUID;
+                    IntPtr graphicsCaptureItemPtr = interop.CreateForMonitor(
+                        monitorHandle,
                         ref graphicsCaptureItemGuid);
 
                     try
@@ -684,10 +833,27 @@ class WindowsGraphicsCapture:
             filename = f"wgc_monitor_{monitor_index}_{timestamp}.png"
             file_path = os.path.join(self.screenshot_dir, filename)
             
-            # TODO: Implement monitor capture using GraphicsCaptureItemInterop.CreateForMonitor
-            # This would require additional implementation in the C# interop code
-            
-            logger.error("Monitor capture not implemented yet")
+            logger.info(f"Capturing monitor {monitor_index} using Windows Graphics Capture API")
+            result = WinRTCaptureInterop.GraphicsCaptureInterop.CaptureMonitor(
+                IntPtr(int(monitor_handle)),
+                file_path
+            )
+
+            if result and os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                logger.info(f"Monitor screenshot saved to {file_path}")
+                return file_path
+
+            if result and not os.path.exists(file_path):
+                import array
+                from io import BytesIO
+
+                byte_array = array.array('B', result)
+                image = Image.open(BytesIO(byte_array))
+                image.save(file_path)
+                logger.info(f"Monitor screenshot saved to {file_path} from binary data")
+                return file_path
+
+            logger.error("Failed to capture monitor with Windows Graphics Capture API")
             return None
             
         except Exception as e:

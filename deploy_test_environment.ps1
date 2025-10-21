@@ -86,7 +86,7 @@ function Write-ConfigJson {
     )
 
     $config = [ordered]@{
-        version        = "1.0.0"
+        version        = "1.1.0"
         build_time     = (Get-Date -Format "yyyyMMdd_HHmmss")
         security_level = "HIGH"
         enable_logging = $true
