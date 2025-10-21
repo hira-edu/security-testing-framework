@@ -219,8 +219,20 @@ class SecurityTestingFramework:
             },
             "targets": [
                 "LockDownBrowser.exe",
+                "LockDownBrowserOEM.exe",
+                "Lockdown.exe",
                 "SafeExamBrowser.exe",
                 "Respondus.exe",
+                "OnVUE.exe",
+                "ProProctor.exe",
+                "ETSBrowser.exe",
+                "Prometric.exe",
+                "ProctorTrack.exe",
+                "ExamitySecureBrowser.exe",
+                "Examplify.exe",
+                "RPNow.exe",
+                "GuardianBrowser.exe",
+                "HonorlockBrowser.exe",
             ],
         }
 

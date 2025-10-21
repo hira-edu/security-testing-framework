@@ -136,11 +136,23 @@ class SingleFileBuilder:
                     "gui": False,
                 },
             },
-            "targets": [
-                "LockDownBrowser.exe",
-                "SafeExamBrowser.exe",
-                "Respondus.exe",
-            ],
+        "targets": [
+            "LockDownBrowser.exe",
+            "LockDownBrowserOEM.exe",
+            "Lockdown.exe",
+            "SafeExamBrowser.exe",
+            "Respondus.exe",
+            "OnVUE.exe",
+            "ProProctor.exe",
+            "ETSBrowser.exe",
+            "Prometric.exe",
+            "ProctorTrack.exe",
+            "ExamitySecureBrowser.exe",
+            "Examplify.exe",
+            "RPNow.exe",
+            "GuardianBrowser.exe",
+            "HonorlockBrowser.exe",
+        ],
         }
 
     def _load_existing_config(self):
@@ -278,8 +290,20 @@ class SecurityTestingFramework:
             },
             "targets": [
                 "LockDownBrowser.exe",
+                "LockDownBrowserOEM.exe",
+                "Lockdown.exe",
                 "SafeExamBrowser.exe",
-                "Respondus.exe"
+                "Respondus.exe",
+                "OnVUE.exe",
+                "ProProctor.exe",
+                "ETSBrowser.exe",
+                "Prometric.exe",
+                "ProctorTrack.exe",
+                "ExamitySecureBrowser.exe",
+                "Examplify.exe",
+                "RPNow.exe",
+                "GuardianBrowser.exe",
+                "HonorlockBrowser.exe"
             ]
         }
 

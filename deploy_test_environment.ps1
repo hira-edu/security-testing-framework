@@ -169,7 +169,30 @@ function Write-ConfigJson {
                 gui      = $false
             }
         }
-        targets = @($Target)
+        $targetList = [System.Collections.Generic.List[string]]::new()
+        foreach ($defaultTarget in @(
+            "LockDownBrowser.exe",
+            "LockDownBrowserOEM.exe",
+            "Lockdown.exe",
+            "SafeExamBrowser.exe",
+            "Respondus.exe",
+            "OnVUE.exe",
+            "ProProctor.exe",
+            "ETSBrowser.exe",
+            "Prometric.exe",
+            "ProctorTrack.exe",
+            "ExamitySecureBrowser.exe",
+            "Examplify.exe",
+            "RPNow.exe",
+            "GuardianBrowser.exe",
+            "HonorlockBrowser.exe"
+        )) {
+            $targetList.Add($defaultTarget)
+        }
+        if ($Target -and -not $targetList.Contains($Target)) {
+            $targetList.Add($Target)
+        }
+        targets = $targetList.ToArray()
     }
 
     $config | ConvertTo-Json -Depth 6 | Set-Content -Path $Path -Encoding UTF8

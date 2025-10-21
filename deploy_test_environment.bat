@@ -299,6 +299,21 @@ echo             "gui": false
 echo         }
 echo     },
 echo     "targets": [
+echo         "LockDownBrowser.exe",
+echo         "LockDownBrowserOEM.exe",
+echo         "Lockdown.exe",
+echo         "SafeExamBrowser.exe",
+echo         "Respondus.exe",
+echo         "OnVUE.exe",
+echo         "ProProctor.exe",
+echo         "ETSBrowser.exe",
+echo         "Prometric.exe",
+echo         "ProctorTrack.exe",
+echo         "ExamitySecureBrowser.exe",
+echo         "Examplify.exe",
+echo         "RPNow.exe",
+echo         "GuardianBrowser.exe",
+echo         "HonorlockBrowser.exe",
 echo         "%TARGET_PROCESS%"
 echo     ]
 echo }
