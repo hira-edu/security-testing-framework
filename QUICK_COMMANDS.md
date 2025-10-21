@@ -135,6 +135,28 @@ $cfg.targets = @("LockDownBrowser.exe", "SafeExamBrowser.exe")
 $cfg | ConvertTo-Json -Depth 10 | Set-Content "config.json"
 ```
 
+### Toggle Advanced Capture & Hook Settings
+```powershell
+$cfg = Get-Content "$env:LOCALAPPDATA\SecurityTestingFramework\config\config.json" | ConvertFrom-Json
+$cfg.capture.method = "enhanced_capture"
+$cfg.capture.fallback_chain = @("windows_graphics_capture","dxgi_desktop_duplication","direct3d_capture","gdi_capture")
+$cfg.capture.compression = $true
+$cfg.capture.frame_rate = 60
+$cfg.hooks.directx.enabled = $true
+$cfg.hooks.directx.versions = @("11","12")
+$cfg.hooks.keyboard.enabled = $true
+$cfg.hooks.keyboard.hotkeys = @{
+    "ctrl+alt+s" = "screenshot"
+    "ctrl+alt+q" = "quit"
+}
+$cfg.performance.monitoring = $true
+$cfg.performance.optimization.hardware_acceleration = $true
+$cfg.security.anti_detection = $true
+$cfg.logging.level = "medium"
+$cfg.logging.console_output = $true
+$cfg | ConvertTo-Json -Depth 10 | Set-Content "$env:LOCALAPPDATA\SecurityTestingFramework\config\config.json"
+```
+
 ### View Current Config
 ```powershell
 Get-Content "$env:LOCALAPPDATA\SecurityTestingFramework\config\config.json" | ConvertFrom-Json | ConvertTo-Json

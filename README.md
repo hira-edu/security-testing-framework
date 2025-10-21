@@ -300,3 +300,9 @@ For authorized users:
 ---
 
 **Security Testing Framework** - Professional tools for educational software security assessment
+
+## Pending Tasks
+- Build `native/bypass_methods/dll/UndownUnlockDXHook.dll` on Windows via CMake or drop in the prebuilt DLL/PDB (see native/bypass_methods/README.md).
+- Update CI workflow to stage that DLL before running `build_single_file.py` so PyInstaller bundles remain functional.
+- Smoke-test Windows PowerShell deployment scripts (`deploy_test_environment.ps1`, `HOT_DEPLOY.ps1`, `quick_deploy.ps1`) end-to-end.
+- Run PyInstaller build on Windows and verify the frozen EXE captures/injects using the new bypass-methods integrations.

@@ -8,6 +8,15 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Dict, Optional
 
+import psutil
+
+from src.utils import native_paths
+
+try:
+    from src.external.bypass_methods.tools.injector import Injector  # type: ignore
+except Exception:  # pragma: no cover - optional dependency handling
+    Injector = None  # type: ignore
+
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +43,8 @@ class InjectionPlan:
     hashes: Dict[str, str]
     dry_run: bool
     metadata: Dict[str, str]
+    target_pid: Optional[int]
+    target_name: Optional[str]
 
 
 class InjectionPipeline:
@@ -92,6 +103,8 @@ class InjectionPipeline:
         metadata = {
             "method": options.method,
             "dry_run": str(options.dry_run),
+            "target_pid": str(options.target_pid) if options.target_pid is not None else "",
+            "target_name": options.target_name or "",
         }
         self.logger.info(
             "Prepared injection plan: %s",
@@ -104,15 +117,52 @@ class InjectionPipeline:
             hashes=hashes,
             dry_run=options.dry_run,
             metadata=metadata,
+            target_pid=options.target_pid,
+            target_name=options.target_name,
         )
 
     def execute(self, plan: InjectionPlan) -> Dict[str, str]:
         if plan.dry_run:
             status = "planned"
             note = "Dry-run mode; injection not executed."
-        else:
+            self.logger.info("Injection %s for %s", status, plan.method)
+            return {
+                "status": status,
+                "note": note,
+                "staged": str(plan.staged_path) if plan.staged_path else None,
+            }
+
+        if not Injector:
             status = "simulated"
-            note = "Injection engine not yet implemented; workflow simulated."
+            note = "Bypass-methods injector unavailable; ensure Windows dependencies are installed."
+            self.logger.info("Injection %s for %s", status, plan.method)
+            return {
+                "status": status,
+                "note": note,
+                "staged": str(plan.staged_path) if plan.staged_path else None,
+            }
+
+        if not plan.staged_path or not plan.staged_path.exists():
+            raise FileNotFoundError("Staged DLL payload missing; cannot execute injection.")
+
+        pid = self._resolve_pid(plan)
+        if pid is None:
+            raise RuntimeError("Unable to resolve target PID for injection.")
+
+        native_paths.ensure_native_dirs()
+
+        try:
+            injector = Injector()
+            injector.load_from_pid(pid)
+            dll_result = injector.inject_dll(str(plan.staged_path))
+            injector.unload()
+            status = "executed"
+            note = f"Injected {plan.staged_path.name} into PID {pid} (result: {dll_result})."
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.error("Injection failed: %s", exc)
+            status = "error"
+            note = str(exc)
+
         self.logger.info("Injection %s for %s", status, plan.method)
         return {
             "status": status,
@@ -125,6 +175,10 @@ class InjectionPipeline:
             if not options.dll_path.exists():
                 raise FileNotFoundError(f"Specified DLL not found: {options.dll_path}")
             return options.dll_path
+
+        vendor_default = native_paths.get_bypass_methods_dll()
+        if vendor_default.exists():
+            return vendor_default
 
         default_name = f"{options.method}.dll"
         candidate = self.templates_dir / default_name
@@ -154,3 +208,19 @@ class InjectionPipeline:
             for chunk in iter(lambda: handle.read(8192), b""):
                 sha256.update(chunk)
         return sha256.hexdigest()
+
+    def _resolve_pid(self, plan: InjectionPlan) -> Optional[int]:
+        if plan.target_pid:
+            return plan.target_pid
+        if not plan.target_name:
+            return None
+        query = plan.target_name.lower()
+        for proc in psutil.process_iter(["pid", "name", "exe"]):
+            try:
+                name = (proc.info.get("name") or "").lower()
+                exe = (proc.info.get("exe") or "").lower()
+                if query in name or query in exe:
+                    return proc.info.get("pid")
+            except (psutil.NoSuchProcess, psutil.AccessDenied):  # pragma: no cover - defensive
+                continue
+        return None

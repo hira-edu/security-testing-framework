@@ -1,6 +1,8 @@
 # Security Testing Framework - Test Environment Deployment Script
-# PowerShell Deployment for Controlled Testing Environments
-# WARNING: Only use in isolated test environments you own
+# WARNING: Only use in environments you control.
+# One-line launcher (elevated PowerShell):
+#   iwr "https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/deploy_test_environment.ps1" -OutFile "$env:TEMP\stf_deploy.ps1" -UseBasicParsing; \
+#   & "$env:TEMP\stf_deploy.ps1" -InstallPath "C:\SecurityTestFramework" -TargetProcess "LockDownBrowser.exe" -AutoStart -Hidden -Persistent
 
 [CmdletBinding()]
 param(
@@ -14,423 +16,343 @@ param(
     [switch]$AutoStart = $true,
 
     [Parameter()]
-    [switch]$Hidden = $false,
+    [switch]$Hidden = $true,
 
     [Parameter()]
-    [switch]$Persistent = $false,
+    [switch]$Persistent = $true,
 
     [Parameter()]
-    [string]$MonitoringDuration = "0"  # 0 = unlimited
+    [string]$MonitoringDuration = "0",  # 0 = run indefinitely
+
+    [Parameter()]
+    [string]$ReleaseTag = "latest",
+
+    [Parameter()]
+    [string]$ReleaseOwner = "hira-edu",
+
+    [Parameter()]
+    [string]$ReleaseRepo = "security-testing-framework",
+
+    [Parameter()]
+    [string]$AssetName = "SecurityTestingFramework.exe"
 )
+
+# -- Helper Functions -------------------------------------------------------
+function Test-Admin {
+    return ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")
+}
+
+function Ensure-Admin {
+    if (-not (Test-Admin)) {
+        Write-Host "[!] Elevation required – relaunching with admin rights." -ForegroundColor Yellow
+        $args = $MyInvocation.UnboundArguments
+        Start-Process PowerShell -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath) + $args
+        exit
+    }
+}
+
+function Get-ReleaseAssetUrl {
+    param(
+        [string]$Owner,
+        [string]$Repo,
+        [string]$Tag,
+        [string]$Asset
+    )
+
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $apiUrl = if ($Tag -eq "latest") {
+        "https://api.github.com/repos/$Owner/$Repo/releases/latest"
+    } else {
+        "https://api.github.com/repos/$Owner/$Repo/releases/tags/$Tag"
+    }
+
+    try {
+        $release = Invoke-RestMethod -Uri $apiUrl -Headers @{ "User-Agent" = "PowerShell"; "Accept" = "application/vnd.github.v3+json" }
+        $assetMatch = $release.assets | Where-Object { $_.name -eq $Asset } | Select-Object -First 1
+        if ($assetMatch) {
+            return @{ Url = $assetMatch.browser_download_url; Version = $release.tag_name }
+        }
+    } catch {
+        Write-Host "[!] GitHub API lookup failed, falling back to latest asset." -ForegroundColor Yellow
+    }
+
+    return @{ Url = "https://github.com/$Owner/$Repo/releases/latest/download/$Asset"; Version = ($Tag -eq "latest" ? "latest" : $Tag) }
+}
+
+function Write-ConfigJson {
+    param(
+        [string]$Path,
+        [string]$Target
+    )
+
+    $config = [ordered]@{
+        version        = "1.0.0"
+        build_time     = (Get-Date -Format "yyyyMMdd_HHmmss")
+        security_level = "HIGH"
+        enable_logging = $true
+        stealth_mode   = $true
+        auto_update    = $true
+        modules        = [ordered]@{
+            screen_capture   = $true
+            process_monitor  = $true
+            api_hooks        = $true
+            memory_scanner   = $true
+            network_monitor  = $true
+            gui              = $false
+        }
+        capture = [ordered]@{
+            method           = "enhanced_capture"
+            fallback_chain   = @("windows_graphics_capture","dxgi_desktop_duplication","direct3d_capture","gdi_capture")
+            frame_rate       = 60
+            quality          = "high"
+            compression      = $true
+            compression_level= 6
+            hardware_acceleration = $true
+            buffer_size      = 10485760
+        }
+        hooks = [ordered]@{
+            directx = [ordered]@{
+                enabled    = $true
+                versions   = @("11","12")
+                interfaces = @("IDXGISwapChain","ID3D11Device","ID3D12Device")
+            }
+            windows_api = [ordered]@{
+                enabled   = $true
+                functions = @("SetForegroundWindow","GetForegroundWindow","CreateProcess","TerminateProcess")
+            }
+            keyboard = [ordered]@{
+                enabled      = $true
+                blocked_keys = @("F12","VK_SNAPSHOT")
+                hotkeys      = @{ "ctrl+alt+s" = "screenshot"; "ctrl+alt+q" = "quit" }
+            }
+            process = [ordered]@{
+                enabled = $false
+            }
+        }
+        performance = [ordered]@{
+            monitoring        = $true
+            sampling_interval = 1000
+            memory_tracking   = $true
+            leak_threshold    = 1048576
+            optimization      = [ordered]@{
+                memory_pool            = $true
+                thread_pool            = $true
+                hardware_acceleration  = $true
+            }
+            limits = [ordered]@{
+                max_cpu_usage    = 80.0
+                max_memory_usage = 1073741824
+                max_frame_rate   = 60
+            }
+        }
+        security = [ordered]@{
+            anti_detection    = $true
+            obfuscation       = $false
+            integrity_checking= $true
+        }
+        logging = [ordered]@{
+            level          = "medium"
+            file           = "undownunlock.log"
+            console_output = $true
+        }
+        bypass_methods = [ordered]@{
+            enabled      = $true
+            package_root = "src.external.bypass_methods"
+            native       = [ordered]@{
+                dll        = "native/bypass_methods/dll/UndownUnlockDXHook.dll"
+                auto_stage = $true
+            }
+            features     = [ordered]@{
+                capture  = $true
+                api_hooks= $true
+                security = $true
+                gui      = $false
+            }
+        }
+        targets = @($Target)
+    }
+
+    $config | ConvertTo-Json -Depth 6 | Set-Content -Path $Path -Encoding UTF8
+}
+
+function Install-Framework {
+    param(
+        [string]$Owner,
+        [string]$Repo,
+        [string]$Tag,
+        [string]$Asset,
+        [string]$Destination
+    )
+
+    if (-not (Test-Path $Destination)) {
+        New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    }
+    foreach ($sub in @("logs","captures","native","data")) {
+        New-Item -ItemType Directory -Path (Join-Path $Destination $sub) -Force | Out-Null
+    }
+
+    $assetInfo = Get-ReleaseAssetUrl -Owner $Owner -Repo $Repo -Tag $Tag -Asset $Asset
+    $downloadUrl = $assetInfo.Url
+    $version = $assetInfo.Version
+
+    Write-Host "[*] Downloading release $version" -ForegroundColor Yellow
+    Write-Host "    $downloadUrl" -ForegroundColor Gray
+
+    $tempExe = Join-Path $env:TEMP $Asset
+    Remove-Item $tempExe -Force -ErrorAction SilentlyContinue
+
+    Invoke-WebRequest -Uri $downloadUrl -OutFile $tempExe -UseBasicParsing
+    Copy-Item $tempExe -Destination (Join-Path $Destination $Asset) -Force
+    Remove-Item $tempExe -Force -ErrorAction SilentlyContinue
+
+    Write-Host "[+] Executable staged at $(Join-Path $Destination $Asset)" -ForegroundColor Green
+    return (Join-Path $Destination $Asset)
+}
+
+function New-LaunchScripts {
+    param(
+        [string]$InstallPath,
+        [string]$ExePath,
+        [string]$ConfigPath,
+        [string]$Target,
+        [string]$Duration,
+        [switch]$Hidden
+    )
+
+    $args = @(
+        "--auto",
+        "--monitor",
+        "--stealth",
+        "--comprehensive",
+        "--target", $Target,
+        "--duration", $Duration,
+        "--silent",
+        "--export", (Join-Path $InstallPath "monitoring_data"),
+        "--config", $ConfigPath
+    )
+
+    $exeLeaf = [System.IO.Path]::GetFileName($ExePath)
+    $exeName = [System.IO.Path]::GetFileNameWithoutExtension($ExePath)
+
+    $bat = @"
+@echo off
+cd /d "$InstallPath"
+set STF_EXE="$ExePath"
+:: stop current instance
+for /f "tokens=2" %%i in ('tasklist /FI "IMAGENAME eq $exeLeaf" ^| findstr /I $exeLeaf') do taskkill /PID %%i /F >nul 2>&1
+start "SecurityTestingFramework" /MIN %STF_EXE% $($args -join ' ')
+exit
+"@
+    $bat | Out-File -FilePath (Join-Path $InstallPath "start_monitoring.bat") -Encoding ASCII
+
+    $ps = @"
+param()
+Set-Location "$InstallPath"
+Stop-Process -Name "$exeName" -Force -ErrorAction SilentlyContinue
+Start-Process "$ExePath" -ArgumentList $args -WindowStyle $([string]($Hidden ? "Hidden" : "Minimized"))
+"@
+    $ps | Out-File -FilePath (Join-Path $InstallPath "start_monitoring.ps1") -Encoding UTF8
+}
+
+function Register-Autostart {
+    param(
+        [string]$ExePath,
+        [string[]]$Arguments,
+        [switch]$Hidden
+    )
+
+    $taskName = "SecurityTestingFramework"
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+
+    $argString = $Arguments -join ' '
+    $action = New-ScheduledTaskAction -Execute $ExePath -Argument $argString -WorkingDirectory (Split-Path $ExePath -Parent)
+    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden -StartWhenAvailable
+
+    try {
+        $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Force | Out-Null
+    } catch {
+        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
+    }
+    Write-Host "[+] Scheduled task registered ($taskName)" -ForegroundColor Green
+
+    if ($Persistent) {
+        $cmd = "`"$ExePath`" $argString"
+        Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "SecurityTestingFramework" -Value $cmd -Force
+        Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "SecurityTestingFramework" -Value $cmd -Force
+        Write-Host "[+] Registry persistence added" -ForegroundColor Green
+    }
+}
+
+function Start-Monitoring {
+    param(
+        [string]$ExePath,
+        [string[]]$Arguments,
+        [switch]$Hidden
+    )
+
+    $exeName = [System.IO.Path]::GetFileNameWithoutExtension($ExePath)
+    Stop-Process -Name $exeName -Force -ErrorAction SilentlyContinue
+    Start-Process $ExePath -ArgumentList $Arguments -WindowStyle ($Hidden ? "Hidden" : "Minimized")
+    Write-Host "[+] Monitoring session started" -ForegroundColor Green
+}
+
+function New-Uninstaller {
+    param(
+        [string]$InstallPath,
+        [string]$ExePath
+    )
+
+    $script = @"
+Write-Host 'Removing Security Testing Framework...' -ForegroundColor Yellow
+Stop-Process -Name '$([System.IO.Path]::GetFileNameWithoutExtension($ExePath))' -Force -ErrorAction SilentlyContinue
+Unregister-ScheduledTask -TaskName SecurityTestingFramework -Confirm:$false -ErrorAction SilentlyContinue
+Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run\SecurityTestingFramework' -ErrorAction SilentlyContinue
+Remove-Item 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run\SecurityTestingFramework' -ErrorAction SilentlyContinue
+Remove-Item '$InstallPath' -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host 'Uninstall complete.' -ForegroundColor Green
+"@
+    $script | Out-File -FilePath (Join-Path $InstallPath "uninstall.ps1") -Encoding UTF8
+}
+
+# -- Main -------------------------------------------------------------------
+Ensure-Admin
 
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "SECURITY TESTING FRAMEWORK DEPLOYMENT" -ForegroundColor Cyan
-Write-Host "Test Environment Setup Script v1.0" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host ""
 
-# Check for admin privileges
-if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Host "[!] This script requires Administrator privileges" -ForegroundColor Red
-    Write-Host "[*] Restarting with elevated privileges..." -ForegroundColor Yellow
-    Start-Process PowerShell -Verb RunAs "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $PSBoundParameters"
-    exit
-}
+$exePath = Install-Framework -Owner $ReleaseOwner -Repo $ReleaseRepo -Tag $ReleaseTag -Asset $AssetName -Destination $InstallPath
+$configPath = Join-Path $InstallPath "config.json"
+Write-ConfigJson -Path $configPath -Target $TargetProcess
+Write-Host "[+] Configuration written to $configPath" -ForegroundColor Green
 
-Write-Host "[+] Running with Administrator privileges" -ForegroundColor Green
-
-# Function to download framework
-function Install-Framework {
-    Write-Host "[*] Installing Security Testing Framework..." -ForegroundColor Yellow
-
-    # Create installation directory
-    if (!(Test-Path $InstallPath)) {
-        New-Item -ItemType Directory -Path $InstallPath -Force | Out-Null
-        Write-Host "[+] Created directory: $InstallPath" -ForegroundColor Green
-    }
-
-    # Download from GitHub
-    $repoUrl = "https://github.com/hira-edu/security-testing-framework/archive/refs/heads/main.zip"
-    $zipPath = "$env:TEMP\stf_framework.zip"
-
-    Write-Host "[*] Downloading framework..." -ForegroundColor Yellow
-    try {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $repoUrl -OutFile $zipPath -UseBasicParsing
-        Write-Host "[+] Download complete" -ForegroundColor Green
-    } catch {
-        Write-Host "[!] Download failed. Installing from direct clone..." -ForegroundColor Red
-
-        # Alternative: Git clone
-        if (Get-Command git -ErrorAction SilentlyContinue) {
-            Set-Location $InstallPath
-            git clone https://github.com/hira-edu/security-testing-framework.git .
-        } else {
-            Write-Host "[!] Git not found. Please install Git or download manually" -ForegroundColor Red
-            exit 1
-        }
-    }
-
-    # Extract files
-    if (Test-Path $zipPath) {
-        Write-Host "[*] Extracting files..." -ForegroundColor Yellow
-        Expand-Archive -Path $zipPath -DestinationPath $env:TEMP -Force
-        Copy-Item -Path "$env:TEMP\security-testing-framework-main\*" -Destination $InstallPath -Recurse -Force
-        Remove-Item $zipPath -Force
-        Remove-Item "$env:TEMP\security-testing-framework-main" -Recurse -Force
-        Write-Host "[+] Extraction complete" -ForegroundColor Green
-    }
-
-    # Install Python dependencies
-    Write-Host "[*] Installing Python dependencies..." -ForegroundColor Yellow
-    Set-Location $InstallPath
-
-    # Create requirements if not exists
-    if (!(Test-Path "requirements.txt")) {
-        @"
-psutil>=5.8.0
-pywin32>=300
-pillow>=9.0.0
-numpy>=1.20.0
-requests>=2.26.0
-pyyaml>=5.4.1
-"@ | Out-File -FilePath "requirements.txt" -Encoding UTF8
-    }
-
-    # Install requirements
-    & python -m pip install --upgrade pip | Out-Null
-    & python -m pip install -r requirements.txt | Out-Null
-    Write-Host "[+] Dependencies installed" -ForegroundColor Green
-}
-
-# Function to create launcher script
-function Create-LauncherScript {
-    Write-Host "[*] Creating launcher script..." -ForegroundColor Yellow
-
-    $launcherScript = @"
-@echo off
-cd /d "$InstallPath"
-set PYTHONPATH=$InstallPath
-
-:: Kill any existing instances
-taskkill /F /IM python.exe /FI "WINDOWTITLE eq SecurityTestFramework*" >nul 2>&1
-
-:: Start with all features enabled
-start "SecurityTestFramework" /MIN python launcher.py ^
-    --auto ^
-    --monitor ^
-    --stealth ^
-    --comprehensive ^
-    --target "$TargetProcess" ^
-    --duration $MonitoringDuration ^
-    --silent ^
-    --export "$InstallPath\monitoring_data"
-
-exit
-"@
-
-    $launcherScript | Out-File -FilePath "$InstallPath\start_monitoring.bat" -Encoding ASCII
-    Write-Host "[+] Launcher script created: start_monitoring.bat" -ForegroundColor Green
-
-    # Create PowerShell launcher
-    $psLauncher = @"
-# PowerShell Launcher for Security Testing Framework
-Set-Location "$InstallPath"
-`$env:PYTHONPATH = "$InstallPath"
-
-# Kill existing instances
-Get-Process python -ErrorAction SilentlyContinue | Where-Object {`$_.MainWindowTitle -like "*SecurityTestFramework*"} | Stop-Process -Force
-
-# Start monitoring with all features
-`$arguments = @(
-    "launcher.py",
+$args = @(
     "--auto",
     "--monitor",
     "--stealth",
     "--comprehensive",
-    "--target", "$TargetProcess",
-    "--duration", "$MonitoringDuration",
+    "--target", $TargetProcess,
+    "--duration", $MonitoringDuration,
     "--silent",
-    "--export", "$InstallPath\monitoring_data"
+    "--export", (Join-Path $InstallPath "monitoring_data"),
+    "--config", $configPath
 )
 
-if ('$Hidden' -eq `$true) {
-    Start-Process python -ArgumentList `$arguments -WindowStyle Hidden
-} else {
-    Start-Process python -ArgumentList `$arguments -WindowStyle Minimized
-}
-"@
+$processName = [System.IO.Path]::GetFileNameWithoutExtension($exePath)
 
-    $psLauncher | Out-File -FilePath "$InstallPath\start_monitoring.ps1" -Encoding UTF8
-    Write-Host "[+] PowerShell launcher created: start_monitoring.ps1" -ForegroundColor Green
-}
-
-# Function to create scheduled task
-function Create-ScheduledTask {
-    Write-Host "[*] Creating scheduled task for automatic startup..." -ForegroundColor Yellow
-
-    $taskName = "SecurityTestFramework"
-
-    # Remove existing task if exists
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-
-    # Create action
-    $action = New-ScheduledTaskAction `
-        -Execute "powershell.exe" `
-        -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$InstallPath\start_monitoring.ps1`""
-
-    # Create triggers
-    $triggers = @()
-    $triggers += New-ScheduledTaskTrigger -AtStartup
-    $triggers += New-ScheduledTaskTrigger -AtLogOn
-
-    # Create settings
-    $settings = New-ScheduledTaskSettingsSet `
-        -AllowStartIfOnBatteries `
-        -DontStopIfGoingOnBatteries `
-        -Hidden `
-        -ExecutionTimeLimit (New-TimeSpan -Days 365) `
-        -RestartCount 3 `
-        -RestartInterval (New-TimeSpan -Minutes 1) `
-        -StartWhenAvailable
-
-    # Create principal (run as SYSTEM)
-    $principal = New-ScheduledTaskPrincipal `
-        -UserId "NT AUTHORITY\SYSTEM" `
-        -LogonType ServiceAccount `
-        -RunLevel Highest
-
-    # Register task
-    Register-ScheduledTask `
-        -TaskName $taskName `
-        -Action $action `
-        -Trigger $triggers `
-        -Settings $settings `
-        -Principal $principal `
-        -Force | Out-Null
-
-    Write-Host "[+] Scheduled task created: $taskName" -ForegroundColor Green
-    Write-Host "[+] Task will run at system startup and user logon" -ForegroundColor Green
-}
-
-# Function to create Windows service
-function Create-WindowsService {
-    Write-Host "[*] Creating Windows service for persistent monitoring..." -ForegroundColor Yellow
-
-    $serviceName = "SecurityTestFramework"
-    $displayName = "Security Testing Framework Monitor"
-    $description = "Comprehensive security testing and monitoring service"
-
-    # Create service wrapper script
-    $serviceWrapper = @"
-import win32serviceutil
-import win32service
-import win32event
-import servicemanager
-import socket
-import time
-import sys
-import os
-
-sys.path.insert(0, r'$InstallPath')
-os.chdir(r'$InstallPath')
-
-class SecurityTestService(win32serviceutil.ServiceFramework):
-    _svc_name_ = '$serviceName'
-    _svc_display_name_ = '$displayName'
-    _svc_description_ = '$description'
-
-    def __init__(self, args):
-        win32serviceutil.ServiceFramework.__init__(self, args)
-        self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-        socket.setdefaulttimeout(60)
-        self.is_running = True
-
-    def SvcStop(self):
-        self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-        win32event.SetEvent(self.hWaitStop)
-        self.is_running = False
-
-    def SvcDoRun(self):
-        servicemanager.LogMsg(servicemanager.EVENTLOG_INFORMATION_TYPE,
-                             servicemanager.PYS_SERVICE_STARTED,
-                             (self._svc_name_, ''))
-        self.main()
-
-    def main(self):
-        import subprocess
-        while self.is_running:
-            try:
-                # Run the monitoring framework
-                subprocess.Popen([
-                    sys.executable,
-                    'launcher.py',
-                    '--auto',
-                    '--monitor',
-                    '--stealth',
-                    '--target', '$TargetProcess',
-                    '--silent'
-                ])
-
-                # Keep service running
-                while self.is_running:
-                    if win32event.WaitForSingleObject(self.hWaitStop, 5000) == win32event.WAIT_OBJECT_0:
-                        break
-
-            except Exception as e:
-                servicemanager.LogErrorMsg(f"Service error: {str(e)}")
-                time.sleep(10)
-
-if __name__ == '__main__':
-    win32serviceutil.HandleCommandLine(SecurityTestService)
-"@
-
-    $serviceWrapper | Out-File -FilePath "$InstallPath\service_wrapper.py" -Encoding UTF8
-
-    # Install and start service
-    Set-Location $InstallPath
-    & python service_wrapper.py install | Out-Null
-    & python service_wrapper.py start | Out-Null
-
-    Write-Host "[+] Windows service created: $serviceName" -ForegroundColor Green
-}
-
-# Function to add registry persistence
-function Add-RegistryPersistence {
-    Write-Host "[*] Adding registry persistence..." -ForegroundColor Yellow
-
-    # Add to Run key (Current User)
-    $regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-    Set-ItemProperty -Path $regPath -Name "SecurityTestFramework" -Value "powershell.exe -WindowStyle Hidden -File `"$InstallPath\start_monitoring.ps1`"" -Force
-    Write-Host "[+] Added to CurrentUser Run key" -ForegroundColor Green
-
-    # Add to Run key (Local Machine) - requires admin
-    $regPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
-    Set-ItemProperty -Path $regPath -Name "SecurityTestFramework" -Value "powershell.exe -WindowStyle Hidden -File `"$InstallPath\start_monitoring.ps1`"" -Force
-    Write-Host "[+] Added to LocalMachine Run key" -ForegroundColor Green
-
-    # Add to Winlogon
-    $regPath = "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon"
-    $currentUserInit = (Get-ItemProperty -Path $regPath -Name "UserInit").UserInit
-    if ($currentUserInit -notlike "*start_monitoring*") {
-        Set-ItemProperty -Path $regPath -Name "UserInit" -Value "$currentUserInit,powershell.exe -WindowStyle Hidden -File `"$InstallPath\start_monitoring.ps1`"" -Force
-        Write-Host "[+] Added to Winlogon UserInit" -ForegroundColor Green
-    }
-}
-
-# Function to configure Windows Defender exclusions
-function Add-DefenderExclusions {
-    Write-Host "[*] Adding Windows Defender exclusions for test environment..." -ForegroundColor Yellow
-
-    try {
-        Add-MpPreference -ExclusionPath $InstallPath -Force -ErrorAction SilentlyContinue
-        Add-MpPreference -ExclusionProcess "python.exe" -Force -ErrorAction SilentlyContinue
-        Write-Host "[+] Defender exclusions added" -ForegroundColor Green
-    } catch {
-        Write-Host "[!] Could not add Defender exclusions (may require additional privileges)" -ForegroundColor Yellow
-    }
-}
-
-# Function to start monitoring immediately
-function Start-Monitoring {
-    Write-Host "[*] Starting monitoring framework..." -ForegroundColor Yellow
-
-    if ($Hidden) {
-        Start-Process powershell -ArgumentList "-WindowStyle Hidden -File `"$InstallPath\start_monitoring.ps1`"" -WindowStyle Hidden
-    } else {
-        Start-Process powershell -ArgumentList "-File `"$InstallPath\start_monitoring.ps1`"" -WindowStyle Minimized
-    }
-
-    Write-Host "[+] Monitoring started" -ForegroundColor Green
-}
-
-# Function to create uninstaller
-function Create-Uninstaller {
-    Write-Host "[*] Creating uninstaller..." -ForegroundColor Yellow
-
-    $uninstaller = @"
-# Uninstaller for Security Testing Framework
-Write-Host "Removing Security Testing Framework..." -ForegroundColor Yellow
-
-# Stop processes
-Get-Process python -ErrorAction SilentlyContinue | Where-Object {`$_.Path -like "*$InstallPath*"} | Stop-Process -Force
-
-# Remove scheduled task
-Unregister-ScheduledTask -TaskName "SecurityTestFramework" -Confirm:`$false -ErrorAction SilentlyContinue
-
-# Remove service
-& python "$InstallPath\service_wrapper.py" stop 2>`$null
-& python "$InstallPath\service_wrapper.py" remove 2>`$null
-
-# Remove registry entries
-Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "SecurityTestFramework" -ErrorAction SilentlyContinue
-Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "SecurityTestFramework" -ErrorAction SilentlyContinue
-
-# Remove Defender exclusions
-Remove-MpPreference -ExclusionPath $InstallPath -Force -ErrorAction SilentlyContinue
-
-# Remove files
-Remove-Item -Path "$InstallPath" -Recurse -Force -ErrorAction SilentlyContinue
-
-Write-Host "Security Testing Framework removed" -ForegroundColor Green
-"@
-
-    $uninstaller | Out-File -FilePath "$InstallPath\uninstall.ps1" -Encoding UTF8
-    Write-Host "[+] Uninstaller created: uninstall.ps1" -ForegroundColor Green
-}
-
-# Main deployment sequence
-Write-Host ""
-Write-Host "=== DEPLOYMENT CONFIGURATION ===" -ForegroundColor Cyan
-Write-Host "Install Path: $InstallPath" -ForegroundColor White
-Write-Host "Target Process: $TargetProcess" -ForegroundColor White
-Write-Host "Auto-Start: $AutoStart" -ForegroundColor White
-Write-Host "Hidden Mode: $Hidden" -ForegroundColor White
-Write-Host "Persistent: $Persistent" -ForegroundColor White
-Write-Host "================================" -ForegroundColor Cyan
-Write-Host ""
-
-# Execute deployment steps
-Install-Framework
-Create-LauncherScript
-Add-DefenderExclusions
+New-LaunchScripts -InstallPath $InstallPath -ExePath $exePath -ConfigPath $configPath -Target $TargetProcess -Duration $MonitoringDuration -Hidden:$Hidden
+New-Uninstaller -InstallPath $InstallPath -ExePath $exePath
 
 if ($AutoStart) {
-    Create-ScheduledTask
+    Register-Autostart -ExePath $exePath -Arguments $args -Hidden:$Hidden -Persistent:$Persistent
 }
 
-if ($Persistent) {
-    Add-RegistryPersistence
-    # Uncomment to create service (requires pywin32)
-    # Create-WindowsService
-}
+Start-Monitoring -ExePath $exePath -Arguments $args -Hidden:$Hidden
 
-Create-Uninstaller
-
-if ($AutoStart) {
-    Start-Monitoring
-}
-
-Write-Host ""
-Write-Host "=========================================" -ForegroundColor Green
-Write-Host "DEPLOYMENT COMPLETE" -ForegroundColor Green
-Write-Host "=========================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "Framework Location: $InstallPath" -ForegroundColor White
-Write-Host "Start Manually: $InstallPath\start_monitoring.bat" -ForegroundColor White
-Write-Host "View Logs: $InstallPath\monitoring_data\" -ForegroundColor White
-Write-Host "Uninstall: powershell -File $InstallPath\uninstall.ps1" -ForegroundColor White
-Write-Host ""
-
-if ($AutoStart) {
-    Write-Host "[✓] Monitoring is now active" -ForegroundColor Green
-    Write-Host "[✓] Will auto-start on system boot" -ForegroundColor Green
-}
-
-if ($Persistent) {
-    Write-Host "[✓] Persistence mechanisms enabled" -ForegroundColor Green
-}
-
-Write-Host ""
-Write-Host "Press any key to exit..."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host " DEPLOYMENT COMPLETE" -ForegroundColor Cyan
+Write-Host " Executable : $exePath" -ForegroundColor Cyan
+Write-Host " Config     : $configPath" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan

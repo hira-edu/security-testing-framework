@@ -1,22 +1,40 @@
 # Quick Deploy - One-Line Deployment Script
-# Run this with: irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/quick_deploy.ps1 | iex
+# Run from an elevated PowerShell prompt:
+#   irm https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/quick_deploy.ps1 | iex
 
-# Quick deployment with maximum capabilities
+param(
+    [string]$InstallPath = "C:\SecurityTestFramework",
+    [string]$TargetProcess = "LockDownBrowser.exe",
+    [switch]$AutoStart = $true,
+    [switch]$Hidden = $true,
+    [switch]$Persistent = $true,
+    [string]$MonitoringDuration = "0",
+    [string]$ReleaseTag = "latest",
+    [string]$ReleaseOwner = "hira-edu",
+    [string]$ReleaseRepo = "security-testing-framework",
+    [string]$AssetName = "SecurityTestingFramework.exe"
+)
+
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# Download and execute main deployment script
-$deployUrl = "https://raw.githubusercontent.com/hira-edu/security-testing-framework/main/deploy_test_environment.ps1"
-$deployScript = (New-Object Net.WebClient).DownloadString($deployUrl)
+$deployPath = Join-Path $env:TEMP "stf_deploy.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$ReleaseOwner/$ReleaseRepo/main/deploy_test_environment.ps1" `
+    -OutFile $deployPath -UseBasicParsing
 
-# Execute with all features enabled
-$scriptBlock = [ScriptBlock]::Create($deployScript)
-& $scriptBlock -InstallPath "C:\SecurityTestFramework" `
-             -TargetProcess "LockDownBrowser.exe" `
-             -AutoStart `
-             -Hidden `
-             -Persistent `
-             -MonitoringDuration "0"
+& $deployPath `
+    -InstallPath $InstallPath `
+    -TargetProcess $TargetProcess `
+    -AutoStart:$AutoStart `
+    -Hidden:$Hidden `
+    -Persistent:$Persistent `
+    -MonitoringDuration $MonitoringDuration `
+    -ReleaseTag $ReleaseTag `
+    -ReleaseOwner $ReleaseOwner `
+    -ReleaseRepo $ReleaseRepo `
+    -AssetName $AssetName
+
+Remove-Item $deployPath -Force -ErrorAction SilentlyContinue
 
 Write-Host "`n[DEPLOYMENT COMPLETE]" -ForegroundColor Green
-Write-Host "Framework is now monitoring in the background" -ForegroundColor Green
-Write-Host "Data will be saved to: C:\SecurityTestFramework\monitoring_data\" -ForegroundColor Yellow
+Write-Host "Framework deployed to: $InstallPath" -ForegroundColor Green
+Write-Host "Monitoring data directory: $InstallPath\monitoring_data" -ForegroundColor Yellow

@@ -8,6 +8,7 @@ import sys
 import os
 import ctypes
 import json
+import copy
 import time
 import logging
 import argparse
@@ -42,10 +43,12 @@ logger = logging.getLogger(__name__)
 
 
 class SecurityTestingFramework:
-    VERSION = "3.0.0"
+    VERSION = "1.0.0"
 
     def __init__(self):
         self.base_dir = Path(__file__).parent
+        self.vendor_root: Optional[Path] = None
+        self._configure_vendor_environment()
         self.data_dir = self._determine_data_dir()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.config_file = self.data_dir / "config.json"
@@ -53,11 +56,33 @@ class SecurityTestingFramework:
         self.profile_store.seed_defaults(build_default_profiles())
         self.is_admin = self._check_admin()
         self.config = self._load_config()
+        self.version = self.config.get("version", self.VERSION)
+        self.VERSION = self.version
+        self.build_time = self.config.get("build_time")
+        template_defaults = self._default_config()
+        for section in ("capture", "hooks", "performance", "security", "logging"):
+            if section not in self.config:
+                self.config[section] = copy.deepcopy(template_defaults[section])
+        self.bypass_methods_config = self.config.get("bypass_methods", {})
+        self.module_flags = self._resolve_module_flags(self.config)
+        self.targets = self._ensure_targets(self.config)
+        self.primary_target = self.targets[0] if self.targets else "LockDownBrowser.exe"
+        self.capture_config = self.config.get("capture", {})
+        self.hook_config = self.config.get("hooks", {})
+        self.performance_config = self.config.get("performance", {})
+        self.security_config = self.config.get("security", {})
+        self.logging_config = self.config.get("logging", {})
+
+        self.config["version"] = self.VERSION
+        if self.build_time:
+            self.config["build_time"] = self.build_time
+        self.config["modules"] = dict(self.module_flags)
+        self.config["targets"] = list(self.targets)
         self.advanced_config = None
         self.stealth_engine = None
-        self.hook_manager = HookManager() if HookManager else None
-        self.capture_bypass = ScreenCaptureBypass() if ScreenCaptureBypass else None
-        self.process_inventory = ProcessInventory()
+        self.hook_manager = HookManager() if HookManager and self.module_flags.get("api_hooks", True) else None
+        self.capture_bypass = ScreenCaptureBypass() if ScreenCaptureBypass and self.module_flags.get("screen_capture", True) else None
+        self.process_inventory = ProcessInventory() if self.module_flags.get("process_monitor", True) else None
 
     def _determine_data_dir(self) -> Path:
         candidates = []
@@ -94,42 +119,220 @@ class SecurityTestingFramework:
             ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
             sys.exit(0)
 
-    def _load_config(self):
-        default_config = {
+    def _default_config(self) -> Dict[str, Any]:
+        return {
             "version": self.VERSION,
-            "security_level": "MAXIMUM",
+            "build_time": datetime.now().strftime("%Y%m%d_%H%M%S"),
+            "security_level": "HIGH",
             "enable_logging": True,
             "stealth_mode": True,
-            "auto_update": False,
+            "auto_update": True,
+            "modules": {
+                "screen_capture": True,
+                "process_monitor": True,
+                "api_hooks": True,
+                "memory_scanner": True,
+                "network_monitor": True,
+                "gui": False,
+            },
+            "capture": {
+                "method": "enhanced_capture",
+                "fallback_chain": [
+                    "windows_graphics_capture",
+                    "dxgi_desktop_duplication",
+                    "direct3d_capture",
+                    "gdi_capture",
+                ],
+                "frame_rate": 60,
+                "quality": "high",
+                "compression": True,
+                "compression_level": 6,
+                "hardware_acceleration": True,
+                "buffer_size": 10_485_760,
+            },
+            "hooks": {
+                "directx": {
+                    "enabled": True,
+                    "versions": ["11", "12"],
+                    "interfaces": ["IDXGISwapChain", "ID3D11Device", "ID3D12Device"],
+                },
+                "windows_api": {
+                    "enabled": True,
+                    "functions": [
+                        "SetForegroundWindow",
+                        "GetForegroundWindow",
+                        "CreateProcess",
+                        "TerminateProcess",
+                    ],
+                },
+                "keyboard": {
+                    "enabled": True,
+                    "blocked_keys": ["F12", "VK_SNAPSHOT"],
+                    "hotkeys": {
+                        "ctrl+alt+s": "screenshot",
+                        "ctrl+alt+q": "quit",
+                    },
+                },
+                "process": {
+                    "enabled": False,
+                },
+            },
+            "performance": {
+                "monitoring": True,
+                "sampling_interval": 1000,
+                "memory_tracking": True,
+                "leak_threshold": 1_048_576,
+                "optimization": {
+                    "memory_pool": True,
+                    "thread_pool": True,
+                    "hardware_acceleration": True,
+                },
+                "limits": {
+                    "max_cpu_usage": 80.0,
+                    "max_memory_usage": 1_073_741_824,
+                    "max_frame_rate": 60,
+                },
+            },
+            "security": {
+                "anti_detection": True,
+                "obfuscation": False,
+                "integrity_checking": True,
+            },
+            "logging": {
+                "level": "medium",
+                "file": "undownunlock.log",
+                "console_output": True,
+            },
+            "bypass_methods": {
+                "enabled": True,
+                "package_root": "src.external.bypass_methods",
+                "native": {
+                    "dll": "native/bypass_methods/dll/UndownUnlockDXHook.dll",
+                    "auto_stage": True,
+                },
+                "features": {
+                    "capture": True,
+                    "api_hooks": True,
+                    "security": True,
+                    "gui": False,
+                },
+            },
+            "targets": [
+                "LockDownBrowser.exe",
+                "SafeExamBrowser.exe",
+                "Respondus.exe",
+            ],
         }
-        if self.config_file.exists():
-            try:
-                return json.load(open(self.config_file, 'r'))
-            except Exception:
-                pass
-        alt = self.base_dir / 'config.json'
-        if alt.exists():
-            try:
-                return json.load(open(alt, 'r'))
-            except Exception:
-                pass
-        return default_config
+
+    def _configure_vendor_environment(self) -> None:
+        vendor_root = self.base_dir / "src" / "external" / "bypass_methods"
+        if vendor_root.exists():
+            self.vendor_root = vendor_root
+            vendor_path = str(vendor_root)
+            if vendor_path not in sys.path:
+                sys.path.insert(0, vendor_path)
+        else:
+            self.vendor_root = None
+        try:
+            from src.utils import native_paths
+        except Exception as exc:  # pragma: no cover - optional helper
+            logger.debug("native_paths helper unavailable: %s", exc)
+            return
+
+        native_paths.ensure_native_dirs()
+        dll_path = native_paths.get_bypass_methods_dll()
+        if not dll_path.exists():
+            logger.debug("Bypass-methods DLL not staged at %s", dll_path)
+        if os.name == "nt" and hasattr(os, "add_dll_directory"):
+            for directory in native_paths.runtime_dll_search_paths():
+                if os.path.isdir(directory):
+                    try:
+                        os.add_dll_directory(directory)
+                    except OSError as err:  # pragma: no cover - defensive
+                        logger.debug("Failed to register DLL directory %s: %s", directory, err)
+
+    def _deep_merge(self, base: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+        result = copy.deepcopy(base)
+        for key, value in overrides.items():
+            if isinstance(value, dict) and isinstance(result.get(key), dict):
+                result[key] = self._deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
+
+    def _merge_config(self, defaults: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(overrides, dict):
+            return copy.deepcopy(defaults)
+        return self._deep_merge(defaults, overrides)
+
+    def _resolve_module_flags(self, config: Dict[str, Any]) -> Dict[str, bool]:
+        defaults = {
+            "screen_capture": True,
+            "process_monitor": True,
+            "api_hooks": True,
+            "memory_scanner": True,
+            "network_monitor": True,
+            "gui": False,
+        }
+        modules = config.get("modules") or {}
+        features = (config.get("bypass_methods") or {}).get("features", {})
+        feature_overrides = {
+            "screen_capture": bool(features.get("capture", True)),
+            "api_hooks": bool(features.get("api_hooks", True)),
+            "gui": bool(features.get("gui", modules.get("gui", False))),
+        }
+        resolved = {}
+        for name, default in defaults.items():
+            base_enabled = bool(modules.get(name, default))
+            feature_enabled = feature_overrides.get(name, True)
+            resolved[name] = base_enabled and feature_enabled
+        return resolved
+
+    def _ensure_targets(self, config: Dict[str, Any]) -> List[str]:
+        targets = config.get("targets")
+        if isinstance(targets, list) and targets:
+            return targets
+        return ["LockDownBrowser.exe", "SafeExamBrowser.exe", "Respondus.exe"]
+
+    def _load_config(self):
+        defaults = self._default_config()
+        for candidate in (self.config_file, self.base_dir / "config.json"):
+            if candidate.exists():
+                try:
+                    with candidate.open("r", encoding="utf-8") as handle:
+                        loaded = json.load(handle)
+                    return self._merge_config(defaults, loaded)
+                except Exception as exc:
+                    logger.warning("Failed to load config from %s: %s", candidate, exc)
+        return defaults
 
     def save_config(self):
         try:
-            json.dump(self.config, open(self.config_file, 'w'), indent=4)
-        except Exception:
-            pass
+            with self.config_file.open("w", encoding="utf-8") as handle:
+                json.dump(self.config, handle, indent=4)
+        except Exception as exc:
+            logger.warning("Failed to save configuration to %s: %s", self.config_file, exc)
 
     def _require_hook_manager(self):
+        if not self.module_flags.get("api_hooks", True):
+            raise RuntimeError("API hook functionality is disabled in the current configuration.")
         if not self.hook_manager:
             raise RuntimeError("API hook manager is unavailable on this platform or missing dependencies.")
         return self.hook_manager
 
     def _require_capture_bypass(self):
+        if not self.module_flags.get("screen_capture", True):
+            raise RuntimeError("Screen capture module is disabled in the current configuration.")
         if not self.capture_bypass:
             raise RuntimeError("Screen capture bypass module is unavailable on this platform or missing dependencies.")
         return self.capture_bypass
+
+    def _require_process_inventory(self):
+        if not self.module_flags.get("process_monitor", True):
+            raise RuntimeError("Process monitoring is disabled in the current configuration.")
+        if not self.process_inventory:
+            raise RuntimeError("Process inventory module is unavailable on this platform or missing dependencies.")
+        return self.process_inventory
 
     def _resolve_path(self, path: str) -> Path:
         candidate = Path(path)
@@ -190,13 +393,14 @@ class SecurityTestingFramework:
         output: Optional[str] = None,
         baseline: Optional[str] = None,
     ) -> Dict[str, Any]:
-        snapshot = self.process_inventory.collect(filters or {})
+        inventory_module = self._require_process_inventory()
+        snapshot = inventory_module.collect(filters or {})
         snapshot["command"] = CLICommand.INVENTORY.value
         if baseline:
             try:
                 baseline_path = self._resolve_path(baseline)
                 baseline_data = self.load_inventory_snapshot(str(baseline_path))
-                snapshot["diff"] = self.process_inventory.diff_snapshots(baseline_data, snapshot)
+                snapshot["diff"] = inventory_module.diff_snapshots(baseline_data, snapshot)
                 snapshot["baseline_path"] = str(baseline_path)
             except Exception as exc:  # pragma: no cover - defensive
                 snapshot["baseline_error"] = str(exc)
@@ -250,8 +454,9 @@ class SecurityTestingFramework:
         output: Optional[str],
     ) -> Dict[str, Any]:
         profile_name = profile or "lockdown-bypass"
+        target_name = target or self.primary_target
         summary: Dict[str, Any] = {
-            "target": target or "LockDownBrowser.exe",
+            "target": target_name,
             "profile": profile_name,
             "duration": duration or 0,
             "stealth": stealth,
@@ -260,30 +465,51 @@ class SecurityTestingFramework:
         }
 
         if stealth:
-            self.init_stealth(maximum=True)
-            summary["stealth_status"] = "initialised"
+            if self.config.get("stealth_mode", False):
+                self.init_stealth(maximum=True)
+                summary["stealth_status"] = "initialised"
+            else:
+                summary["stealth_status"] = "disabled_by_config"
+        elif self.config.get("stealth_mode"):
+            summary["stealth_status"] = "available"
+        else:
+            summary["stealth_status"] = "disabled"
 
         hook_context = {
             "source": "monitor",
             "target": summary["target"],
             "profile": profile_name,
         }
-        try:
-            hook_results = self.enable_hooks(profile=profile_name, context=hook_context)
-            summary["hook_operations"] = hook_results
-            summary["hook_context"] = hook_context
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.error("Failed to enable hooks: %s", exc)
-            summary["hook_operations"] = [{"status": "error", "error": str(exc)}]
-            summary["hook_context"] = hook_context
 
-        try:
-            summary["hook_status"] = self.hooks_status()
-        except Exception as exc:  # pragma: no cover - defensive
-            summary["hook_status"] = {"status": "unavailable", "error": str(exc)}
+        hooks_enabled = (
+            self.module_flags.get("api_hooks", True)
+            and self.hook_config.get("windows_api", {}).get("enabled", True)
+        )
+
+        if hooks_enabled:
+            try:
+                hook_results = self.enable_hooks(profile=profile_name, context=hook_context)
+                summary["hook_operations"] = hook_results
+                summary["hook_context"] = hook_context
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.error("Failed to enable hooks: %s", exc)
+                summary["hook_operations"] = [{"status": "error", "error": str(exc)}]
+                summary["hook_context"] = hook_context
+
+            try:
+                summary["hook_status"] = self.hooks_status()
+            except Exception as exc:  # pragma: no cover - defensive
+                summary["hook_status"] = {"status": "unavailable", "error": str(exc)}
+        else:
+            reason = "api_hooks disabled in config"
+            if not self.hook_config.get("windows_api", {}).get("enabled", True):
+                reason = "windows_api hooks disabled in user config"
+            summary["hook_operations"] = [{"status": "skipped", "reason": reason}]
+            summary["hook_context"] = hook_context
+            summary["hook_status"] = {"status": "disabled"}
 
         if comprehensive:
-            results = self.run_comprehensive(target)
+            results = self.run_comprehensive(target_name)
             summary["comprehensive_results"] = results
 
         if duration:
@@ -302,14 +528,44 @@ class SecurityTestingFramework:
         output_image: Optional[str] = None,
         output_json: Optional[str] = None,
     ) -> Dict[str, Any]:
+        target_name = target or self.primary_target
         bypass = self._require_capture_bypass()
-        capture_result = bypass.capture_protected_window(method=method)
+        capture_cfg = self.capture_config or {}
+        configured_method = capture_cfg.get("method", "auto")
+        fallback_chain = capture_cfg.get("fallback_chain") or []
+
+        methods_to_try: List[str] = []
+        requested_method = method or configured_method
+        if requested_method == "enhanced_capture":
+            methods_to_try = [m for m in fallback_chain] or ["auto"]
+        else:
+            methods_to_try = [requested_method or "auto"]
+
+        capture_result = None
+        attempt_log: List[Dict[str, Any]] = []
+        for candidate in methods_to_try:
+            capture_result = bypass.capture_protected_window(method=candidate)
+            attempt_log.append(
+                {
+                    "method": candidate,
+                    "success": getattr(capture_result, "success", False),
+                    "error": getattr(capture_result, "error", None),
+                    "bypass": getattr(capture_result, "bypass_used", None),
+                }
+            )
+            if capture_result.success:
+                break
+
+        if capture_result is None:
+            raise RuntimeError("Capture module returned no result.")
+
         payload: Dict[str, Any] = {
-            "target": target,
-            "method": capture_result.method if hasattr(capture_result, "method") else method,
+            "target": target_name,
+            "method": getattr(capture_result, "method", methods_to_try[-1]),
             "success": capture_result.success,
             "bypass_used": getattr(capture_result, "bypass_used", None),
             "error": capture_result.error,
+            "attempts": attempt_log,
         }
 
         if capture_result.image and output_image:
@@ -335,13 +591,45 @@ class SecurityTestingFramework:
         logger.info("Stealth engine activated: %s", stealth_level.name)
 
     def run_comprehensive(self, target: str = None):
-        self.advanced_config = ConfigPresets.full_stealth()
-        runner = ComprehensiveTestRunner(self.advanced_config)
+        target_name = target or self.primary_target
+        config = ConfigPresets.full_stealth()
+        config.anti_detection.enabled = bool(self.config.get("stealth_mode", False))
+        hook_directx_enabled = self.hook_config.get("directx", {}).get("enabled", True)
+        config.directx.enabled = self.module_flags.get("screen_capture", True) and hook_directx_enabled
+        config.screen_capture.enabled = self.module_flags.get("screen_capture", True)
+        hook_windows_api_enabled = self.hook_config.get("windows_api", {}).get("enabled", True)
+        config.windows_api.enabled = self.module_flags.get("api_hooks", True) and hook_windows_api_enabled
+        config.memory.enabled = self.module_flags.get("memory_scanner", True)
+        config.network.enabled = self.module_flags.get("network_monitor", True)
+        config.persistence.enabled = self.module_flags.get("process_monitor", True)
+        process_hooks_enabled = self.hook_config.get("process", {}).get("enabled", False)
+        config.injection.enabled = self.module_flags.get("api_hooks", True) and (hook_windows_api_enabled or process_hooks_enabled)
+        config.target_process = target_name
+        config.target_window_title = target_name
+
+        self.advanced_config = config
+        runner = ComprehensiveTestRunner(config)
         results = runner.run_all_tests()
         return results
 
     def run_gui(self):
-        from src.gui.main_window import MainWindow
+        if not self.module_flags.get("gui", False):
+            logger.info("GUI module disabled; launching interactive shell instead.")
+            from src.cli.shell import launch_shell
+
+            launch_shell(self, _build_parser, show_banner=True)
+            return
+
+        try:
+            from src.gui.main_window import MainWindow
+        except Exception as exc:  # pragma: no cover - optional dependency handling
+            logger.error("GUI dependencies unavailable: %s", exc)
+            logger.info("Falling back to interactive shell.")
+            from src.cli.shell import launch_shell
+
+            launch_shell(self, _build_parser, show_banner=True)
+            return
+
         app = MainWindow(self)
         app.run()
 
@@ -535,10 +823,13 @@ def main():
         return
 
     if args.stealth:
-        fw.init_stealth(maximum=True)
+        if fw.config.get("stealth_mode", False):
+            fw.init_stealth(maximum=True)
+        else:
+            logger.warning("Stealth flag requested but stealth_mode is disabled in config.")
 
     if args.comprehensive:
-        res = fw.run_comprehensive(args.target)
+        res = fw.run_comprehensive(args.target or fw.primary_target)
         if args.report:
             with open(args.report, 'w') as f:
                 json.dump(res, f, indent=2, default=str)
@@ -549,7 +840,7 @@ def main():
     if args.test:
         from src.modules.test_runner import TestRunner
 
-        test_target = args.target or "LockDownBrowser.exe"
+        test_target = args.target or fw.primary_target
         result = TestRunner(fw).run_test(args.test, test_target)
         if not args.silent:
             print(json.dumps(result, indent=2, default=str))

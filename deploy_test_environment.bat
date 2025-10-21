@@ -202,23 +202,105 @@ echo %GREEN%[+] Defender exclusions configured%RESET%
 echo %YELLOW%[*] Creating maximum capability configuration...%RESET%
 (
 echo {
-echo     "version": "3.0.0",
-echo     "security_level": "MAXIMUM",
+echo     "version": "1.0.0",
+echo     "build_time": "%DATE:~10,4%%DATE:~4,2%%DATE:~7,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%",
+echo     "security_level": "HIGH",
 echo     "enable_logging": true,
 echo     "stealth_mode": true,
-echo     "auto_update": false,
+echo     "auto_update": true,
 echo     "modules": {
 echo         "screen_capture": true,
 echo         "process_monitor": true,
 echo         "api_hooks": true,
 echo         "memory_scanner": true,
 echo         "network_monitor": true,
-echo         "stealth_engine": true,
-echo         "advanced_bypass": true,
-echo         "input_monitor": true,
-echo         "system_monitor": true,
-echo         "clipboard_monitor": true
-echo     }
+echo         "gui": false
+echo     },
+echo     "capture": {
+echo         "method": "enhanced_capture",
+echo         "fallback_chain": [
+echo             "windows_graphics_capture",
+echo             "dxgi_desktop_duplication",
+echo             "direct3d_capture",
+echo             "gdi_capture"
+echo         ],
+echo         "frame_rate": 60,
+echo         "quality": "high",
+echo         "compression": true,
+echo         "compression_level": 6,
+echo         "hardware_acceleration": true,
+echo         "buffer_size": 10485760
+echo     },
+echo     "hooks": {
+echo         "directx": {
+echo             "enabled": true,
+echo             "versions": [ "11", "12" ],
+echo             "interfaces": [ "IDXGISwapChain", "ID3D11Device", "ID3D12Device" ]
+echo         },
+echo         "windows_api": {
+echo             "enabled": true,
+echo             "functions": [
+echo                 "SetForegroundWindow",
+echo                 "GetForegroundWindow",
+echo                 "CreateProcess",
+echo                 "TerminateProcess"
+echo             ]
+echo         },
+echo         "keyboard": {
+echo             "enabled": true,
+echo             "blocked_keys": [ "F12", "VK_SNAPSHOT" ],
+echo             "hotkeys": {
+echo                 "ctrl+alt+s": "screenshot",
+echo                 "ctrl+alt+q": "quit"
+echo             }
+echo         },
+echo         "process": {
+echo             "enabled": false
+echo         }
+echo     },
+echo     "performance": {
+echo         "monitoring": true,
+echo         "sampling_interval": 1000,
+echo         "memory_tracking": true,
+echo         "leak_threshold": 1048576,
+echo         "optimization": {
+echo             "memory_pool": true,
+echo             "thread_pool": true,
+echo             "hardware_acceleration": true
+echo         },
+echo         "limits": {
+echo             "max_cpu_usage": 80.0,
+echo             "max_memory_usage": 1073741824,
+echo             "max_frame_rate": 60
+echo         }
+echo     },
+echo     "security": {
+echo         "anti_detection": true,
+echo         "obfuscation": false,
+echo         "integrity_checking": true
+echo     },
+echo     "logging": {
+echo         "level": "medium",
+echo         "file": "undownunlock.log",
+echo         "console_output": true
+echo     },
+echo     "bypass_methods": {
+echo         "enabled": true,
+echo         "package_root": "src.external.bypass_methods",
+echo         "native": {
+echo             "dll": "native/bypass_methods/dll/UndownUnlockDXHook.dll",
+echo             "auto_stage": true
+echo         },
+echo         "features": {
+echo             "capture": true,
+echo             "api_hooks": true,
+echo             "security": true,
+echo             "gui": false
+echo         }
+echo     },
+echo     "targets": [
+echo         "%TARGET_PROCESS%"
+echo     ]
 echo }
 ) > "%INSTALL_PATH%\config.json"
 

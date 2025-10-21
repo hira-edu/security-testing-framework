@@ -11,6 +11,7 @@ import zipfile
 import tempfile
 import subprocess
 import argparse
+import copy
 import json
 import base64
 from pathlib import Path
@@ -25,6 +26,149 @@ class SingleFileBuilder:
         self.release_mode = release_mode
         self.version = "1.0.0"
         self.build_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.config_path = self.base_dir / "config.json"
+
+        defaults = self._default_config()
+        existing = self._load_existing_config()
+        self.config_data = self._merge_config(defaults, existing)
+
+        self.version = self.config_data.get("version", self.version)
+        self.build_time = self.config_data.get("build_time", self.build_time)
+        self.config_data["version"] = self.version
+        self.config_data["build_time"] = self.build_time
+
+    def _default_config(self):
+        """Return baseline configuration structure."""
+        return {
+            "version": self.version,
+            "build_time": self.build_time,
+            "security_level": "HIGH",
+            "enable_logging": True,
+            "stealth_mode": True,
+            "auto_update": True,
+            "modules": {
+                "screen_capture": True,
+                "process_monitor": True,
+                "api_hooks": True,
+                "memory_scanner": True,
+                "network_monitor": True,
+                "gui": False,
+            },
+            "capture": {
+                "method": "enhanced_capture",
+                "fallback_chain": [
+                    "windows_graphics_capture",
+                    "dxgi_desktop_duplication",
+                    "direct3d_capture",
+                    "gdi_capture",
+                ],
+                "frame_rate": 60,
+                "quality": "high",
+                "compression": True,
+                "compression_level": 6,
+                "hardware_acceleration": True,
+                "buffer_size": 10_485_760,
+            },
+            "hooks": {
+                "directx": {
+                    "enabled": True,
+                    "versions": ["11", "12"],
+                    "interfaces": ["IDXGISwapChain", "ID3D11Device", "ID3D12Device"],
+                },
+                "windows_api": {
+                    "enabled": True,
+                    "functions": [
+                        "SetForegroundWindow",
+                        "GetForegroundWindow",
+                        "CreateProcess",
+                        "TerminateProcess",
+                    ],
+                },
+                "keyboard": {
+                    "enabled": True,
+                    "blocked_keys": ["F12", "VK_SNAPSHOT"],
+                    "hotkeys": {
+                        "ctrl+alt+s": "screenshot",
+                        "ctrl+alt+q": "quit",
+                    },
+                },
+                "process": {
+                    "enabled": False,
+                },
+            },
+            "performance": {
+                "monitoring": True,
+                "sampling_interval": 1000,
+                "memory_tracking": True,
+                "leak_threshold": 1_048_576,
+                "optimization": {
+                    "memory_pool": True,
+                    "thread_pool": True,
+                    "hardware_acceleration": True,
+                },
+                "limits": {
+                    "max_cpu_usage": 80.0,
+                    "max_memory_usage": 1_073_741_824,
+                    "max_frame_rate": 60,
+                },
+            },
+            "security": {
+                "anti_detection": True,
+                "obfuscation": False,
+                "integrity_checking": True,
+            },
+            "logging": {
+                "level": "medium",
+                "file": "undownunlock.log",
+                "console_output": True,
+            },
+            "bypass_methods": {
+                "enabled": True,
+                "package_root": "src.external.bypass_methods",
+                "native": {
+                    "dll": "native/bypass_methods/dll/UndownUnlockDXHook.dll",
+                    "auto_stage": True,
+                },
+                "features": {
+                    "capture": True,
+                    "api_hooks": True,
+                    "security": True,
+                    "gui": False,
+                },
+            },
+            "targets": [
+                "LockDownBrowser.exe",
+                "SafeExamBrowser.exe",
+                "Respondus.exe",
+            ],
+        }
+
+    def _load_existing_config(self):
+        """Load config.json if it already exists on disk."""
+        if not self.config_path.exists():
+            return {}
+        try:
+            with self.config_path.open("r", encoding="utf-8") as handle:
+                return json.load(handle)
+        except Exception as exc:
+            print(f"[CONFIG] Failed to read existing config.json: {exc}")
+            return {}
+
+    def _deep_merge(self, base: dict, incoming: dict) -> dict:
+        """Recursively merge dictionaries."""
+        for key, value in incoming.items():
+            if isinstance(value, dict) and isinstance(base.get(key), dict):
+                base[key] = self._deep_merge(base.get(key, {}), value)
+            else:
+                base[key] = value
+        return base
+
+    def _merge_config(self, defaults, existing):
+        """Merge defaults with any existing configuration values."""
+        merged = copy.deepcopy(defaults)
+        if isinstance(existing, dict):
+            merged = self._deep_merge(merged, existing)
+        return merged
 
     def clean_directories(self):
         """Clean previous build artifacts"""
@@ -120,9 +264,10 @@ class SecurityTestingFramework:
         """Load configuration from file"""
         default_config = {
             "version": self.VERSION,
+            "build_time": datetime.now().strftime("%Y%m%d_%H%M%S"),
             "security_level": "HIGH",
             "enable_logging": True,
-            "stealth_mode": False,
+            "stealth_mode": True,
             "auto_update": True,
             "modules": {
                 "screen_capture": True,
@@ -130,7 +275,12 @@ class SecurityTestingFramework:
                 "api_hooks": True,
                 "memory_scanner": True,
                 "network_monitor": True
-            }
+            },
+            "targets": [
+                "LockDownBrowser.exe",
+                "SafeExamBrowser.exe",
+                "Respondus.exe"
+            ]
         }
 
         if self.config_file.exists():
@@ -259,7 +409,8 @@ class MainWindow:
     def __init__(self, framework):
         self.framework = framework
         self.root = tk.Tk()
-        self.root.title("Security Testing Framework v1.0")
+        version = getattr(self.framework, "VERSION", "1.0.0")
+        self.root.title(f"Security Testing Framework v{version}")
         self.root.geometry("900x600")
         self.setup_ui()
 
@@ -280,9 +431,22 @@ class MainWindow:
         # Tools menu
         tools_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Tools", menu=tools_menu)
-        tools_menu.add_command(label="Screen Capture", command=self.run_screen_capture)
-        tools_menu.add_command(label="Process Monitor", command=self.run_process_monitor)
-        tools_menu.add_command(label="API Hooks", command=self.run_api_hooks)
+        modules = self.framework.config.get("modules", {})
+        tools_menu.add_command(
+            label="Screen Capture",
+            command=self.run_screen_capture,
+            state=tk.NORMAL if modules.get("screen_capture", True) else tk.DISABLED,
+        )
+        tools_menu.add_command(
+            label="Process Monitor",
+            command=self.run_process_monitor,
+            state=tk.NORMAL if modules.get("process_monitor", True) else tk.DISABLED,
+        )
+        tools_menu.add_command(
+            label="API Hooks",
+            command=self.run_api_hooks,
+            state=tk.NORMAL if modules.get("api_hooks", True) else tk.DISABLED,
+        )
 
         # Main content
         self.notebook = ttk.Notebook(self.root)
@@ -320,14 +484,33 @@ class MainWindow:
         info_frame = ttk.LabelFrame(self.dashboard_frame, text="System Information")
         info_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        info_text = f"""
-        Version: {self.framework.VERSION}
-        Admin Privileges: {"Yes" if self.framework.is_admin else "No"}
-        Security Level: {self.framework.config.get('security_level', 'HIGH')}
-        Stealth Mode: {"Enabled" if self.framework.config.get('stealth_mode') else "Disabled"}
-        """
+        version = getattr(self.framework, "VERSION", "1.0.0")
+        build_time = getattr(self.framework, "build_time", None) or self.framework.config.get("build_time")
+        info_lines = [
+            f"Version: {version}",
+            f"Build Time: {build_time or 'Not specified'}",
+            f"Admin Privileges: {'Yes' if self.framework.is_admin else 'No'}",
+            f"Security Level: {self.framework.config.get('security_level', 'HIGH')}",
+            f"Stealth Mode: {'Enabled' if self.framework.config.get('stealth_mode') else 'Disabled'}",
+            "Modules:",
+        ]
 
-        ttk.Label(info_frame, text=info_text, justify=tk.LEFT).pack(padx=10, pady=10)
+        modules = self.framework.config.get("modules", {})
+        if modules:
+            for name, enabled in sorted(modules.items()):
+                display_name = name.replace("_", " ").title()
+                status = "Enabled" if enabled else "Disabled"
+                info_lines.append(f"  - {display_name}: {status}")
+        else:
+            info_lines.append("  - None configured")
+
+        targets = self._configured_targets()
+        if targets:
+            info_lines.append("Targets:")
+            for target_name in targets:
+                info_lines.append(f"  - {target_name}")
+
+        ttk.Label(info_frame, text="\\n".join(info_lines), justify=tk.LEFT).pack(padx=10, pady=10)
 
     def setup_tests(self):
         """Setup tests tab"""
@@ -335,18 +518,19 @@ class MainWindow:
         ttk.Label(self.tests_frame, text="Select Tests:", font=("Arial", 12)).pack(pady=5)
 
         self.test_vars = {}
+        modules = self.framework.config.get("modules", {})
         tests = [
-            "Screen Capture Detection",
-            "Process Manipulation",
-            "API Hooking",
-            "Memory Scanning",
-            "Network Monitoring"
+            ("Screen Capture Detection", modules.get("screen_capture", True)),
+            ("Process Manipulation", modules.get("process_monitor", True)),
+            ("API Hooking", modules.get("api_hooks", True)),
+            ("Memory Scanning", modules.get("memory_scanner", True)),
+            ("Network Monitoring", modules.get("network_monitor", True)),
         ]
 
-        for test in tests:
-            var = tk.BooleanVar(value=True)
-            self.test_vars[test] = var
-            ttk.Checkbutton(self.tests_frame, text=test, variable=var).pack(anchor=tk.W, padx=20)
+        for label, enabled in tests:
+            var = tk.BooleanVar(value=bool(enabled))
+            self.test_vars[label] = var
+            ttk.Checkbutton(self.tests_frame, text=label, variable=var).pack(anchor=tk.W, padx=20)
 
         # Target selection
         target_frame = ttk.Frame(self.tests_frame)
@@ -355,7 +539,7 @@ class MainWindow:
         ttk.Label(target_frame, text="Target Process:").pack(side=tk.LEFT, padx=5)
         self.target_entry = ttk.Entry(target_frame, width=30)
         self.target_entry.pack(side=tk.LEFT, padx=5)
-        self.target_entry.insert(0, "LockDownBrowser.exe")
+        self.target_entry.insert(0, self._default_target())
 
         # Run button
         ttk.Button(
@@ -378,6 +562,23 @@ class MainWindow:
         ttk.Button(
             self.results_frame, text="Export Report", command=self.export_report
         ).pack(pady=5)
+
+    def _configured_targets(self):
+        """Return configured targets from the framework or config."""
+        targets = getattr(self.framework, "targets", None)
+        if isinstance(targets, (list, tuple)):
+            return list(targets)
+        config_targets = self.framework.config.get("targets")
+        if isinstance(config_targets, (list, tuple)):
+            return list(config_targets)
+        return []
+
+    def _default_target(self):
+        """Return preferred default target for UI inputs."""
+        targets = self._configured_targets()
+        if targets:
+            return targets[0]
+        return "LockDownBrowser.exe"
 
     def run_tests(self):
         """Run selected security tests"""
@@ -504,23 +705,37 @@ a = Analysis(
     datas=[
         ('{base_dir_str}/src', 'src'),
         ('{base_dir_str}/resources', 'resources'),
+        ('{base_dir_str}/config.json', '.'),
         ('{base_dir_str}/native', 'native'),
+        ('{base_dir_str}/src/external/bypass_methods', 'src/external/bypass_methods'),
+        ('{base_dir_str}/native/bypass_methods/dll', 'native/bypass_methods/dll'),
+        ('{base_dir_str}/native/bypass_methods/drivers', 'native/bypass_methods/drivers'),
     ],
     hiddenimports=[
-        # Core
-        'tkinter','ctypes','json','threading','subprocess','pathlib',
-        # Advanced modules to ensure inclusion
-        'core.stealth_engine','core.advanced_config',
-        'modules.comprehensive_test_runner','modules.input_monitor','modules.system_monitor',
-        'modules.memory_scanner','modules.api_hooks','modules.screen_capture_bypass',
-        'utils.report_generator','utils.updater','yaml'
+        'tkinter','tkinter.ttk','tkinter.messagebox','tkinter.filedialog',
+        'ctypes','ctypes.wintypes','ctypes.util',
+        'json','threading','subprocess','pathlib','logging','argparse',
+        'datetime','base64','tempfile','shutil','os','sys',
+        'numpy','PIL','PIL.Image','PIL.ImageDraw','psutil',
+        'cryptography','requests','yaml','colorlog',
+        'clr','pythonnet','comtypes','keyboard',
+        'PyQt5','PyQt5.QtWidgets','PyQt5.QtCore','PyQt5.QtGui',
+        'matplotlib','matplotlib.pyplot','matplotlib.backends.backend_tkagg',
+        'win32api','win32con','win32gui','win32process','win32security',
+        'win32file','win32event','win32service','pywintypes','winreg',
+        'src','src.core','src.modules','src.gui','src.cli','src.utils',
+        'src.core.stealth_engine','src.core.advanced_config',
+        'src.modules.comprehensive_test_runner','src.modules.input_monitor',
+        'src.modules.system_monitor','src.modules.memory_scanner',
+        'src.modules.api_hooks','src.modules.screen_capture_bypass',
+        'src.modules.directx_hook','src.modules.test_runner',
+        'src.gui.main_window','src.cli.cli_handler',
+        'src.utils.report_generator','src.utils.updater',
     ],
     hookspath=[],
     hooksconfig={{}},
     runtime_hooks=[r'build/pyi_rth_addsrc.py'],
     excludes=[
-        'matplotlib',
-        'numpy',
         'pandas',
         'scipy',
         'test',
@@ -800,33 +1015,16 @@ class AutoUpdater:
         (self.base_dir / "src" / "core" / "__init__.py").touch()
 
     def create_config_file(self):
-        """Create default configuration file"""
-        print("Creating configuration file...")
+        """Create or update configuration file from merged config data."""
+        action = "Updating" if self.config_path.exists() else "Creating"
+        print(f"{action} configuration file...")
 
-        config = {
-            "version": self.version,
-            "build_time": self.build_time,
-            "security_level": "HIGH",
-            "enable_logging": True,
-            "stealth_mode": False,
-            "auto_update": True,
-            "modules": {
-                "screen_capture": True,
-                "process_monitor": True,
-                "api_hooks": True,
-                "memory_scanner": True,
-                "network_monitor": True
-            },
-            "targets": [
-                "LockDownBrowser.exe",
-                "SafeExamBrowser.exe",
-                "Respondus.exe"
-            ]
-        }
+        config = copy.deepcopy(self.config_data)
+        config["version"] = self.version
+        config["build_time"] = self.build_time
 
-        config_path = self.base_dir / "config.json"
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=4)
+        with self.config_path.open("w", encoding="utf-8") as handle:
+            json.dump(config, handle, indent=4)
 
     def run(self):
         """Execute the complete build process"""
@@ -907,13 +1105,9 @@ def main():
     builder = SingleFileBuilder(release_mode=args.release)
     if args.version:
         builder.version = args.version
+        builder.config_data["version"] = args.version
 
     return builder.run()
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-
-
-

@@ -9,11 +9,18 @@ import sys
 import os
 import time
 import threading
+import tempfile
+from pathlib import Path
 from typing import Optional, Tuple, List, Dict, Any
 from dataclasses import dataclass
 import numpy as np
 from PIL import Image
 import logging
+
+try:
+    from src.external.bypass_methods.capture.advanced_capture import AdvancedScreenCapture  # type: ignore
+except Exception:  # pragma: no cover - optional dependency handling
+    AdvancedScreenCapture = None  # type: ignore
 
 # Windows constants
 WDA_NONE = 0x00000000
@@ -45,8 +52,18 @@ class ScreenCaptureBypass:
         # Store original functions
         self.original_funcs = {}
 
-        # Initialize capture methods
-        self.capture_methods = {
+        self._screenshot_dir = Path(tempfile.gettempdir()) / "stf_captures"
+        self._screenshot_dir.mkdir(parents=True, exist_ok=True)
+        self.vendor_capture = None
+        if AdvancedScreenCapture:
+            try:
+                self.vendor_capture = AdvancedScreenCapture(str(self._screenshot_dir))
+                self.logger.info("Advanced bypass-methods capture initialised")
+            except Exception as exc:  # pragma: no cover - optional dependency handling
+                self.logger.warning("Advanced capture not available: %s", exc)
+                self.vendor_capture = None
+
+        base_methods = {
             'gdi': self._capture_gdi,
             'dxgi': self._capture_dxgi,
             'wgc': self._capture_wgc,
@@ -54,6 +71,10 @@ class ScreenCaptureBypass:
             'mirror_driver': self._capture_mirror_driver,
             'kernel': self._capture_kernel
         }
+        self.capture_methods = {}
+        if self.vendor_capture:
+            self.capture_methods['advanced'] = self._capture_vendor_advanced
+        self.capture_methods.update(base_methods)
 
         # Initialize bypass techniques
         self.bypass_techniques = {
@@ -152,6 +173,36 @@ class ScreenCaptureBypass:
             method=method,
             error="Capture failed"
         )
+
+    def _capture_vendor_advanced(self, hwnd: int) -> CaptureResult:
+        """Leverage bypass-methods advanced capture pipeline."""
+        if not self.vendor_capture:
+            return CaptureResult(success=False, method="advanced", error="Vendor capture not initialised")
+
+        try:
+            path = self.vendor_capture.capture_using_windows_graphics_capture(hwnd)
+            method_used = "windows_graphics_capture"
+            if not path:
+                path = self.vendor_capture.capture_using_dxgi_desktop_duplication(hwnd)
+                method_used = "dxgi_desktop_duplication"
+            if not path:
+                path = self.vendor_capture.capture_using_direct3d(hwnd)
+                method_used = "direct3d"
+
+            if not path:
+                return CaptureResult(success=False, method="advanced", error="Advanced capture methods exhausted")
+
+            image_path = Path(path)
+            if not image_path.exists():
+                return CaptureResult(success=False, method="advanced", error=f"Capture file missing at {path}")
+
+            with Image.open(image_path) as img:
+                image_copy = img.copy()
+
+            return CaptureResult(success=True, method=method_used, image=image_copy, bypass_used="advanced_vendor")
+        except Exception as exc:  # pragma: no cover - defensive
+            self.logger.error("Advanced capture pipeline failed: %s", exc)
+            return CaptureResult(success=False, method="advanced", error=str(exc))
 
     # === Bypass Techniques ===
 

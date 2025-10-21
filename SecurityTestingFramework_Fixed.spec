@@ -16,6 +16,10 @@ a = Analysis(
         (f'{base_dir}/src', 'src'),
         (f'{base_dir}/resources', 'resources'),
         (f'{base_dir}/config.json', '.'),
+        (f'{base_dir}/native', 'native'),
+        (f'{base_dir}/src/external/bypass_methods', 'src/external/bypass_methods'),
+        (f'{base_dir}/native/bypass_methods/dll', 'native/bypass_methods/dll'),
+        (f'{base_dir}/native/bypass_methods/drivers', 'native/bypass_methods/drivers'),
     ],
     hiddenimports=[
         # Core Python modules - FIXED: Added ctypes.wintypes
@@ -25,12 +29,16 @@ a = Analysis(
         'datetime','base64','tempfile','shutil','os','sys',
         # Third-party required - FIXED: Included numpy and PIL
         'numpy','PIL','PIL.Image','PIL.ImageDraw','psutil',
-        'cryptography','requests','yaml',
+        'cryptography','requests','yaml','colorlog',
+        'clr','pythonnet','comtypes','keyboard',
+        'PyQt5','PyQt5.QtWidgets','PyQt5.QtCore','PyQt5.QtGui',
+        'matplotlib','matplotlib.pyplot','matplotlib.backends.backend_tkagg',
         # Pywin32 modules
         'win32api','win32con','win32gui','win32process','win32security',
         'win32file','win32event','win32service','pywintypes','winreg',
         # Application modules with src prefix
         'src','src.core','src.modules','src.gui','src.cli','src.utils',
+        'src.external','src.external.bypass_methods',
         'src.core.stealth_engine','src.core.advanced_config',
         'src.modules.comprehensive_test_runner','src.modules.input_monitor',
         'src.modules.system_monitor','src.modules.memory_scanner',
@@ -43,7 +51,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'matplotlib','pandas','scipy','test','tests',
+        'pandas','scipy','test','tests',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,

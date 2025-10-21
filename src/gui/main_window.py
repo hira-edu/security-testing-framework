@@ -10,7 +10,8 @@ class MainWindow:
     def __init__(self, framework):
         self.framework = framework
         self.root = tk.Tk()
-        self.root.title("Security Testing Framework v1.0")
+        version = getattr(self.framework, "VERSION", "1.0.0")
+        self.root.title(f"Security Testing Framework v{version}")
         self.root.geometry("900x600")
         self.setup_ui()
 
@@ -31,9 +32,22 @@ class MainWindow:
         # Tools menu
         tools_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Tools", menu=tools_menu)
-        tools_menu.add_command(label="Screen Capture", command=self.run_screen_capture)
-        tools_menu.add_command(label="Process Monitor", command=self.run_process_monitor)
-        tools_menu.add_command(label="API Hooks", command=self.run_api_hooks)
+        modules = self.framework.config.get("modules", {})
+        tools_menu.add_command(
+            label="Screen Capture",
+            command=self.run_screen_capture,
+            state=tk.NORMAL if modules.get("screen_capture", True) else tk.DISABLED,
+        )
+        tools_menu.add_command(
+            label="Process Monitor",
+            command=self.run_process_monitor,
+            state=tk.NORMAL if modules.get("process_monitor", True) else tk.DISABLED,
+        )
+        tools_menu.add_command(
+            label="API Hooks",
+            command=self.run_api_hooks,
+            state=tk.NORMAL if modules.get("api_hooks", True) else tk.DISABLED,
+        )
 
         # Main content
         self.notebook = ttk.Notebook(self.root)
@@ -71,14 +85,76 @@ class MainWindow:
         info_frame = ttk.LabelFrame(self.dashboard_frame, text="System Information")
         info_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        info_text = f"""
-        Version: {self.framework.VERSION}
-        Admin Privileges: {"Yes" if self.framework.is_admin else "No"}
-        Security Level: {self.framework.config.get('security_level', 'HIGH')}
-        Stealth Mode: {"Enabled" if self.framework.config.get('stealth_mode') else "Disabled"}
-        """
+        version = getattr(self.framework, "VERSION", "1.0.0")
+        build_time = getattr(self.framework, "build_time", None) or self.framework.config.get("build_time")
+        info_lines = [
+            f"Version: {version}",
+            f"Build Time: {build_time or 'Not specified'}",
+            f"Admin Privileges: {'Yes' if self.framework.is_admin else 'No'}",
+            f"Security Level: {self.framework.config.get('security_level', 'HIGH')}",
+            f"Stealth Mode: {'Enabled' if self.framework.config.get('stealth_mode') else 'Disabled'}",
+            "Modules:",
+        ]
 
-        ttk.Label(info_frame, text=info_text, justify=tk.LEFT).pack(padx=10, pady=10)
+        modules = self.framework.config.get("modules", {})
+        if modules:
+            for name, enabled in sorted(modules.items()):
+                display_name = name.replace("_", " ").title()
+                status = "Enabled" if enabled else "Disabled"
+                info_lines.append(f"  - {display_name}: {status}")
+        else:
+            info_lines.append("  - None configured")
+
+        capture_cfg = getattr(self.framework, "capture_config", {}) or self.framework.config.get("capture", {})
+        if capture_cfg:
+            info_lines.append("Capture Configuration:")
+            method = capture_cfg.get("method", "auto")
+            fps = capture_cfg.get("frame_rate", "n/a")
+            quality = capture_cfg.get("quality", "n/a")
+            compression = "On" if capture_cfg.get("compression") else "Off"
+            info_lines.append(f"  - Method: {method} ({fps} FPS, {quality} quality, Compression {compression})")
+            fallback = capture_cfg.get("fallback_chain") or []
+            if fallback:
+                info_lines.append(f"  - Fallback Chain: {', '.join(fallback)}")
+
+        hook_cfg = getattr(self.framework, "hook_config", {}) or self.framework.config.get("hooks", {})
+        if hook_cfg:
+            info_lines.append("Hook Configuration:")
+            directx_cfg = hook_cfg.get("directx", {})
+            info_lines.append(
+                "  - DirectX: {state} (Versions: {versions})".format(
+                    state="Enabled" if directx_cfg.get("enabled") else "Disabled",
+                    versions=", ".join(directx_cfg.get("versions", [])) or "n/a",
+                )
+            )
+            windows_api_cfg = hook_cfg.get("windows_api", {})
+            info_lines.append(
+                "  - Windows API: {state}".format(
+                    state="Enabled" if windows_api_cfg.get("enabled") else "Disabled"
+                )
+            )
+            keyboard_cfg = hook_cfg.get("keyboard", {})
+            info_lines.append(
+                "  - Keyboard Hooks: {state}".format(
+                    state="Enabled" if keyboard_cfg.get("enabled") else "Disabled"
+                )
+            )
+
+        performance_cfg = getattr(self.framework, "performance_config", {}) or self.framework.config.get("performance", {})
+        if performance_cfg:
+            info_lines.append("Performance Monitoring:")
+            info_lines.append(
+                f"  - Monitoring: {'Enabled' if performance_cfg.get('monitoring') else 'Disabled'} "
+                f"(Interval: {performance_cfg.get('sampling_interval', 'n/a')} ms)"
+            )
+
+        targets = self._configured_targets()
+        if targets:
+            info_lines.append("Targets:")
+            for target_name in targets:
+                info_lines.append(f"  - {target_name}")
+
+        ttk.Label(info_frame, text="\n".join(info_lines), justify=tk.LEFT).pack(padx=10, pady=10)
 
     def setup_tests(self):
         """Setup tests tab"""
@@ -86,18 +162,19 @@ class MainWindow:
         ttk.Label(self.tests_frame, text="Select Tests:", font=("Arial", 12)).pack(pady=5)
 
         self.test_vars = {}
+        modules = self.framework.config.get("modules", {})
         tests = [
-            "Screen Capture Detection",
-            "Process Manipulation",
-            "API Hooking",
-            "Memory Scanning",
-            "Network Monitoring"
+            ("Screen Capture Detection", modules.get("screen_capture", True)),
+            ("Process Manipulation", modules.get("process_monitor", True)),
+            ("API Hooking", modules.get("api_hooks", True)),
+            ("Memory Scanning", modules.get("memory_scanner", True)),
+            ("Network Monitoring", modules.get("network_monitor", True)),
         ]
 
-        for test in tests:
-            var = tk.BooleanVar(value=True)
-            self.test_vars[test] = var
-            ttk.Checkbutton(self.tests_frame, text=test, variable=var).pack(anchor=tk.W, padx=20)
+        for label, enabled in tests:
+            var = tk.BooleanVar(value=bool(enabled))
+            self.test_vars[label] = var
+            ttk.Checkbutton(self.tests_frame, text=label, variable=var).pack(anchor=tk.W, padx=20)
 
         # Target selection
         target_frame = ttk.Frame(self.tests_frame)
@@ -106,7 +183,7 @@ class MainWindow:
         ttk.Label(target_frame, text="Target Process:").pack(side=tk.LEFT, padx=5)
         self.target_entry = ttk.Entry(target_frame, width=30)
         self.target_entry.pack(side=tk.LEFT, padx=5)
-        self.target_entry.insert(0, "LockDownBrowser.exe")
+        self.target_entry.insert(0, self._default_target())
 
         # Run button
         ttk.Button(
@@ -129,6 +206,23 @@ class MainWindow:
         ttk.Button(
             self.results_frame, text="Export Report", command=self.export_report
         ).pack(pady=5)
+
+    def _configured_targets(self):
+        """Return configured targets from the framework or config."""
+        targets = getattr(self.framework, "targets", None)
+        if isinstance(targets, (list, tuple)):
+            return list(targets)
+        config_targets = self.framework.config.get("targets")
+        if isinstance(config_targets, (list, tuple)):
+            return list(config_targets)
+        return []
+
+    def _default_target(self):
+        """Return preferred default target for UI inputs."""
+        targets = self._configured_targets()
+        if targets:
+            return targets[0]
+        return "LockDownBrowser.exe"
 
     def run_tests(self):
         """Run selected security tests"""

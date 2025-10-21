@@ -10,7 +10,100 @@
         "process_monitor": true,
         "api_hooks": true,
         "memory_scanner": true,
-        "network_monitor": true
+        "network_monitor": true,
+        "gui": false
+    },
+    "capture": {
+        "method": "enhanced_capture",
+        "fallback_chain": [
+            "windows_graphics_capture",
+            "dxgi_desktop_duplication",
+            "direct3d_capture",
+            "gdi_capture"
+        ],
+        "frame_rate": 60,
+        "quality": "high",
+        "compression": true,
+        "compression_level": 6,
+        "hardware_acceleration": true,
+        "buffer_size": 10485760
+    },
+    "hooks": {
+        "directx": {
+            "enabled": true,
+            "versions": [
+                "11",
+                "12"
+            ],
+            "interfaces": [
+                "IDXGISwapChain",
+                "ID3D11Device",
+                "ID3D12Device"
+            ]
+        },
+        "windows_api": {
+            "enabled": true,
+            "functions": [
+                "SetForegroundWindow",
+                "GetForegroundWindow",
+                "CreateProcess",
+                "TerminateProcess"
+            ]
+        },
+        "keyboard": {
+            "enabled": true,
+            "blocked_keys": [
+                "F12",
+                "VK_SNAPSHOT"
+            ],
+            "hotkeys": {
+                "ctrl+alt+s": "screenshot",
+                "ctrl+alt+q": "quit"
+            }
+        },
+        "process": {
+            "enabled": false
+        }
+    },
+    "performance": {
+        "monitoring": true,
+        "sampling_interval": 1000,
+        "memory_tracking": true,
+        "leak_threshold": 1048576,
+        "optimization": {
+            "memory_pool": true,
+            "thread_pool": true,
+            "hardware_acceleration": true
+        },
+        "limits": {
+            "max_cpu_usage": 80.0,
+            "max_memory_usage": 1073741824,
+            "max_frame_rate": 60
+        }
+    },
+    "security": {
+        "anti_detection": true,
+        "obfuscation": false,
+        "integrity_checking": true
+    },
+    "logging": {
+        "level": "medium",
+        "file": "undownunlock.log",
+        "console_output": true
+    },
+    "bypass_methods": {
+        "enabled": true,
+        "package_root": "src.external.bypass_methods",
+        "native": {
+            "dll": "native/bypass_methods/dll/UndownUnlockDXHook.dll",
+            "auto_stage": true
+        },
+        "features": {
+            "capture": true,
+            "api_hooks": true,
+            "security": true,
+            "gui": false
+        }
     },
     "targets": [
         "LockDownBrowser.exe",
